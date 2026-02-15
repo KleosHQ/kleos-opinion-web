@@ -52,122 +52,134 @@ export default function Home() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Open': return 'bg-green-100 text-green-800'
-      case 'Closed': return 'bg-yellow-100 text-yellow-800'
-      case 'Settled': return 'bg-blue-100 text-blue-800'
-      case 'Draft': return 'bg-gray-100 text-gray-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'Open': return 'bg-white text-black border border-white'
+      case 'Closed': return 'bg-gray-800 text-white border border-gray-600'
+      case 'Settled': return 'bg-gray-600 text-white border border-gray-400'
+      case 'Draft': return 'bg-black text-white border border-gray-800'
+      default: return 'bg-black text-white border border-gray-800'
     }
   }
 
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div>Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-white text-xl">Loading...</div>
       </div>
     )
   }
 
   return (
-    <main className="min-h-screen p-8 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold">Kanzz Markets</h1>
-        {authenticated ? (
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">
-              {user?.wallet?.address?.slice(0, 6)}...{user?.wallet?.address?.slice(-4)}
-            </span>
-            <Link 
-              href="/positions"
-              className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
-            >
-              My Positions
-            </Link>
-            <Link 
-              href="/admin"
-              className="px-4 py-2 bg-purple-200 rounded-lg hover:bg-purple-300"
-            >
-              Admin
-            </Link>
-            <button 
-              onClick={logout}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-            >
-              Disconnect
-            </button>
+    <main className="min-h-screen bg-black text-white p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-12 pb-8 border-b border-white">
+          <div>
+            <h1 className="text-5xl font-bold mb-2">Kanzz</h1>
+            <p className="text-gray-400 text-lg">Prediction Market Protocol</p>
           </div>
-        ) : (
-          <button 
-            onClick={login}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Connect Wallet
-          </button>
-        )}
-      </div>
-
-      <div className="mb-6 flex gap-2">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-lg ${filter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-        >
-          All
-        </button>
-        <button
-          onClick={() => setFilter('Open')}
-          className={`px-4 py-2 rounded-lg ${filter === 'Open' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-        >
-          Open
-        </button>
-        <button
-          onClick={() => setFilter('Closed')}
-          className={`px-4 py-2 rounded-lg ${filter === 'Closed' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-        >
-          Closed
-        </button>
-        <button
-          onClick={() => setFilter('Settled')}
-          className={`px-4 py-2 rounded-lg ${filter === 'Settled' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-        >
-          Settled
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="text-center py-12">Loading markets...</div>
-      ) : markets.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">No markets found</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {markets.map((market) => (
-            <Link 
-              key={market.id}
-              href={`/markets/${market.marketId}`}
-              className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200"
+          {authenticated ? (
+            <div className="flex items-center gap-4">
+              <div className="px-4 py-2 bg-white text-black rounded-lg font-mono text-sm">
+                {user?.wallet?.address?.slice(0, 6)}...{user?.wallet?.address?.slice(-4)}
+              </div>
+              <Link 
+                href="/positions"
+                className="px-6 py-2 border border-white hover:bg-white hover:text-black transition-colors rounded-lg"
+              >
+                My Positions
+              </Link>
+              <Link 
+                href="/admin"
+                className="px-6 py-2 border border-white hover:bg-white hover:text-black transition-colors rounded-lg"
+              >
+                Admin
+              </Link>
+              <button 
+                onClick={logout}
+                className="px-6 py-2 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg font-medium"
+              >
+                Disconnect
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={login}
+              className="px-8 py-3 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg font-semibold text-lg"
             >
-              <div className="flex justify-between items-start mb-4">
-                <h2 className="text-xl font-semibold">Market #{market.marketId}</h2>
-                <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(market.status)}`}>
-                  {market.status}
-                </span>
-              </div>
-              
-              <div className="space-y-2 text-sm text-gray-600">
-                <div>Items: {market.itemCount}</div>
-                <div>Positions: {market.positionsCount}</div>
-                <div>Total Stake: {Number(market.totalRawStake) / 1e9} SOL</div>
-                <div>Start: {formatTimestamp(market.startTs)}</div>
-                <div>End: {formatTimestamp(market.endTs)}</div>
-                {market.winningItemIndex !== null && (
-                  <div className="text-green-600 font-medium">
-                    Winner: Item #{market.winningItemIndex}
-                  </div>
-                )}
-              </div>
-            </Link>
+              Connect Wallet
+            </button>
+          )}
+        </div>
+
+        {/* Filter Buttons */}
+        <div className="mb-8 flex gap-3">
+          {(['all', 'Open', 'Closed', 'Settled'] as const).map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilter(status === 'all' ? 'all' : status)}
+              className={`px-6 py-2 rounded-lg border transition-colors ${
+                filter === status || (status === 'all' && filter === 'all')
+                  ? 'bg-white text-black border-white'
+                  : 'bg-black text-white border-white hover:bg-gray-900'
+              }`}
+            >
+              {status === 'all' ? 'All Markets' : status}
+            </button>
           ))}
         </div>
-      )}
+
+        {/* Markets Grid */}
+        {loading ? (
+          <div className="text-center py-24 text-gray-400 text-xl">Loading markets...</div>
+        ) : markets.length === 0 ? (
+          <div className="text-center py-24 text-gray-400 text-xl">No markets found</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {markets.map((market) => (
+              <Link 
+                key={market.id}
+                href={`/markets/${market.marketId}`}
+                className="block p-6 bg-black border border-white rounded-lg hover:bg-gray-900 transition-colors"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <h2 className="text-2xl font-bold">Market #{market.marketId}</h2>
+                  <span className={`px-3 py-1 rounded text-xs font-medium ${getStatusColor(market.status)}`}>
+                    {market.status}
+                  </span>
+                </div>
+                
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Items:</span>
+                    <span className="font-semibold">{market.itemCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Positions:</span>
+                    <span className="font-semibold">{market.positionsCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Total Stake:</span>
+                    <span className="font-semibold">{Number(market.totalRawStake) / 1e9} SOL</span>
+                  </div>
+                  <div className="pt-3 border-t border-gray-800">
+                    <div className="text-gray-400 text-xs mb-1">Start:</div>
+                    <div className="text-xs">{formatTimestamp(market.startTs)}</div>
+                  </div>
+                  <div className="pb-3 border-b border-gray-800">
+                    <div className="text-gray-400 text-xs mb-1">End:</div>
+                    <div className="text-xs">{formatTimestamp(market.endTs)}</div>
+                  </div>
+                  {market.winningItemIndex !== null && (
+                    <div className="pt-2 text-white font-semibold">
+                      🏆 Winner: Item #{market.winningItemIndex}
+                    </div>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </main>
   )
 }
