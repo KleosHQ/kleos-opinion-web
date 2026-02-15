@@ -1,10 +1,8 @@
+'use client'
+
+import { PrivyProvider } from '@privy-io/react-auth'
 import type { Metadata } from "next";
 import "./globals.css";
-
-export const metadata: Metadata = {
-  title: "Kanzz",
-  description: "Prediction Market Protocol",
-};
 
 export default function RootLayout({
   children,
@@ -13,7 +11,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <PrivyProvider
+          appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
+          config={{
+            loginMethods: ['wallet', 'email', 'sms'],
+            appearance: {
+              theme: 'light',
+              accentColor: '#676FFF',
+            },
+          }}
+        >
+          {children}
+        </PrivyProvider>
+      </body>
     </html>
   );
 }
