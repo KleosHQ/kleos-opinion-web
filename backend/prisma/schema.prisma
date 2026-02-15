@@ -1,0 +1,83 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MarketStatus {
+  Draft
+  Open
+  Closed
+  Settled
+}
+
+model Protocol {
+  id              String   @id @default(cuid())
+  adminAuthority  String   @unique // Pubkey as string
+  treasury        String   // Pubkey as string
+  protocolFeeBps  Int      @default(0) // 0-10000 (basis points)
+  marketCount     BigInt   @default(0)
+  paused          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  markets         Market[]
+
+  @@index([adminAuthority])
+}
+
+model Market {
+  id                        String      @id @default(cuid())
+  marketId                  BigInt      @unique
+  categoryId                BigInt
+  itemsHash                 String      // [u8; 32] as hex string
+  itemCount                 Int
+  startTs                   BigInt      // Unix timestamp
+  endTs                     BigInt      // Unix timestamp
+  status                    MarketStatus @default(Draft)
+  totalRawStake             BigInt      @default(0)
+  totalEffectiveStake       String      // u128 as string
+  winningItemIndex          Int?
+  totalWinningEffectiveStake String?    // u128 as string
+  protocolFeeAmount         BigInt?
+  distributablePool         BigInt?
+  positionsCount            Int         @default(0)
+  tokenMint                 String      // Pubkey as string
+  vault                     String      // Pubkey as string
+  protocolId                String
+  protocol                  Protocol    @relation(fields: [protocolId], references: [id])
+  createdAt                 DateTime    @default(now())
+  updatedAt                 DateTime    @updatedAt
+
+  positions                 Position[]
+
+  @@index([marketId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([startTs])
+  @@index([endTs])
+}
+
+model Position {
+  id                String   @id @default(cuid())
+  marketId          String
+  market            Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  user              String   // Pubkey as string
+  selectedItemIndex Int
+  rawStake          BigInt
+  effectiveStake    String   // u128 as string
+  claimed           Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([marketId, user])
+  @@index([user])
+  @@index([marketId])
+  @@index([claimed])
+}
