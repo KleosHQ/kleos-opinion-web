@@ -1,8 +1,9 @@
 'use client'
 
-import { usePrivy } from '@privy-io/react-auth'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
+import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 
 interface Market {
   id: string
@@ -30,7 +31,8 @@ interface Position {
 }
 
 export default function MarketDetailPage() {
-  const { ready, authenticated, user, login } = usePrivy()
+  const { connectSolanaWallet, connecting, ready, authenticated } = useSolanaLogin()
+  const { address: walletAddress, isConnected: isSolanaConnected } = useSolanaWallet()
   const params = useParams()
   const router = useRouter()
   const marketId = params.marketId as string
@@ -77,8 +79,8 @@ export default function MarketDetailPage() {
   }, [ready, marketId])
 
   const handlePlacePosition = async () => {
-    if (!authenticated || !user?.wallet?.address || !selectedItem || !rawStake || !effectiveStake) {
-      alert('Please fill all fields and connect wallet')
+    if (!authenticated || !isSolanaConnected || !walletAddress || !selectedItem || !rawStake || !effectiveStake) {
+      alert('Please fill all fields and connect a Solana wallet')
       return
     }
 
@@ -91,7 +93,7 @@ export default function MarketDetailPage() {
         },
         body: JSON.stringify({
           marketId,
-          user: user.wallet.address,
+          user: walletAddress,
           selectedItemIndex: selectedItem,
           rawStake,
           effectiveStake,
@@ -146,8 +148,8 @@ export default function MarketDetailPage() {
     )
   }
 
-  const userPosition = market.positions.find(p => p.user === user?.wallet?.address)
-  const canPlacePosition = market.status === 'Open' && authenticated && !userPosition
+  const userPosition = market.positions.find(p => p.user === walletAddress)
+  const canPlacePosition = market.status === 'Open' && isSolanaConnected && !userPosition
 
   return (
     <main className="min-h-screen p-8 max-w-6xl mx-auto">
@@ -227,7 +229,7 @@ export default function MarketDetailPage() {
                     const response = await fetch(`http://localhost:3001/api/positions/${userPosition.id}/claim`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ user: user?.wallet?.address }),
+                      body: JSON.stringify({ user: walletAddress }),
                     })
                     if (response.ok) {
                       alert('Payout claimed! (On-chain transaction required)')
@@ -250,10 +252,11 @@ export default function MarketDetailPage() {
             <h3 className="text-xl font-semibold mb-4">Place Position</h3>
             {!authenticated ? (
               <button
-                onClick={login}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                onClick={connectSolanaWallet}
+                disabled={connecting || !ready}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                Connect Wallet to Place Position
+                {connecting ? 'Connecting...' : 'Connect Solana Wallet to Place Position'}
               </button>
             ) : (
               <div className="space-y-4">

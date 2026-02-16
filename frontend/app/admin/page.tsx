@@ -1,12 +1,13 @@
 'use client'
 
-import { usePrivy } from '@privy-io/react-auth'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { PublicKey } from '@solana/web3.js'
 import { marketsApi, protocolApi } from '@/lib/api'
 import { useSolanaClient } from '@/lib/solana/useSolanaClient'
 import { getProtocolPda } from '@/lib/solana/client'
+import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
+import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 
 interface Protocol {
   id: string
@@ -18,7 +19,8 @@ interface Protocol {
 }
 
 export default function AdminPage() {
-  const { ready, authenticated, user, login } = usePrivy()
+  const { connectSolanaWallet, connecting, ready, authenticated } = useSolanaLogin()
+  const { address: walletAddress, isConnected: isSolanaConnected, publicKey } = useSolanaWallet()
   const router = useRouter()
   const { client, connection, getWallet, isConnected } = useSolanaClient()
   
@@ -72,8 +74,8 @@ export default function AdminPage() {
   }, [ready, fetchProtocol])
 
   const handleInitializeProtocol = async () => {
-    if (!authenticated || !user?.wallet?.address) {
-      alert('Please connect wallet')
+    if (!authenticated || !isSolanaConnected || !walletAddress || !publicKey) {
+      alert('Please connect a Solana wallet')
       return
     }
 
@@ -82,7 +84,7 @@ export default function AdminPage() {
 
     setSendingTx(true)
     try {
-      const admin = new PublicKey(user.wallet.address)
+      const admin = publicKey
       const feeBps = parseInt(protocolFeeBps)
       
       if (feeBps < 0 || feeBps > 10000) {
@@ -103,8 +105,8 @@ export default function AdminPage() {
       // After transaction, sync with backend
       await protocolApi.initialize({
         protocolFeeBps: feeBps,
-        treasury: user.wallet.address, // Default treasury
-        adminAuthority: user.wallet.address,
+        treasury: walletAddress, // Default treasury
+        adminAuthority: walletAddress,
       })
       
       fetchProtocol()
@@ -116,12 +118,12 @@ export default function AdminPage() {
   }
 
   const handleCreateMarket = async () => {
-    if (!authenticated || !user?.wallet?.address) {
-      alert('Please connect wallet')
+    if (!authenticated || !isSolanaConnected || !walletAddress || !publicKey) {
+      alert('Please connect a Solana wallet')
       return
     }
 
-    if (!protocol || protocol.adminAuthority !== user.wallet.address) {
+    if (!protocol || protocol.adminAuthority !== walletAddress) {
       alert('Unauthorized: You are not the admin')
       return
     }
@@ -136,11 +138,11 @@ export default function AdminPage() {
         itemsHash: marketForm.itemsHash,
         itemCount: parseInt(marketForm.itemCount),
         tokenMint: marketForm.tokenMint,
-        adminAuthority: user.wallet.address,
+        adminAuthority: walletAddress,
       })
 
       // Then create on-chain
-      const admin = new PublicKey(user.wallet.address)
+      const admin = publicKey
       const tokenMint = new PublicKey(marketForm.tokenMint)
       const itemsHashArray = marketForm.itemsHash.startsWith('0x')
         ? Array.from(Buffer.from(marketForm.itemsHash.slice(2), 'hex'))
@@ -182,7 +184,7 @@ export default function AdminPage() {
   }
 
   const handleOpenMarket = async (marketId: string) => {
-    if (!authenticated || !user?.wallet?.address || !protocol || protocol.adminAuthority !== user.wallet.address) {
+    if (!authenticated || !isSolanaConnected || !walletAddress || !publicKey || !protocol || protocol.adminAuthority !== walletAddress) {
       alert('Unauthorized')
       return
     }
@@ -190,10 +192,10 @@ export default function AdminPage() {
     setSendingTx(true)
     try {
       // Update backend
-      await marketsApi.open(marketId, { adminAuthority: user.wallet.address })
+      await marketsApi.open(marketId, { adminAuthority: walletAddress })
 
       // Create on-chain transaction
-      const admin = new PublicKey(user.wallet.address)
+      const admin = publicKey
       const market = new PublicKey(marketId) // This should be the market PDA
       
       const transaction = await client.openMarket(admin, market)
@@ -254,7 +256,7 @@ export default function AdminPage() {
   }
 
   const handleUpdateProtocol = async () => {
-    if (!authenticated || !user?.wallet?.address || !protocol || protocol.adminAuthority !== user.wallet.address) {
+    if (!authenticated || !isSolanaConnected || !walletAddress || !publicKey || !protocol || protocol.adminAuthority !== walletAddress) {
       alert('Unauthorized')
       return
     }
@@ -271,10 +273,10 @@ export default function AdminPage() {
         protocolFeeBps: parseInt(feeBps),
         treasury,
         paused: paused === 'true',
-        adminAuthority: user.wallet.address,
+        adminAuthority: walletAddress,
       })
 
-      const admin = new PublicKey(user.wallet.address)
+      const admin = new PublicKey(walletAddress)
       const treasuryPubkey = new PublicKey(treasury)
 
       const transaction = await client.updateProtocol(
@@ -305,23 +307,28 @@ export default function AdminPage() {
     )
   }
 
-  if (!authenticated) {
+  if (!authenticated || !isSolanaConnected) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center">
-          <p className="text-white mb-4">Please connect your wallet</p>
+          <p className="text-white mb-4">
+            {authenticated && !isSolanaConnected 
+              ? 'Please connect a Solana wallet'
+              : 'Please connect your Solana wallet'}
+          </p>
           <button
-            onClick={login}
-            className="px-6 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors"
+            onClick={connectSolanaWallet}
+            disabled={connecting || !ready}
+            className="px-6 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            Connect Wallet
+            {connecting ? 'Connecting...' : 'Connect Solana Wallet'}
           </button>
         </div>
       </div>
     )
   }
 
-  const isAdmin = protocol && protocol.adminAuthority === user?.wallet?.address
+  const isAdmin = protocol && protocol.adminAuthority === walletAddress
 
   return (
     <main className="min-h-screen bg-black text-white p-8">
@@ -362,7 +369,7 @@ export default function AdminPage() {
               </div>
               <div>
                 <div className="text-sm text-gray-400 mb-1">Your Address</div>
-                <div className="font-mono text-xs break-all">{user?.wallet?.address}</div>
+                <div className="font-mono text-xs break-all">{walletAddress || 'Not connected (Solana wallet required)'}</div>
               </div>
             </div>
             {isAdmin && (

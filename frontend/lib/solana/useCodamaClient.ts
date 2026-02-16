@@ -3,6 +3,7 @@
 import { usePrivy } from '@privy-io/react-auth'
 import { Connection, PublicKey } from '@solana/web3.js'
 import { useMemo } from 'react'
+import { getSolanaWalletAddress } from '@/lib/utils/wallet'
 
 // Import generated Codama client
 // This will be available after running: npm run generate:client
@@ -22,9 +23,8 @@ export function useCodamaClient() {
   const connection = useMemo(() => new Connection(RPC_URL, 'confirmed'), [])
 
   const getWallet = () => {
-    if (!user) return null
-    
-    const solanaWallet = user.wallet?.address
+    // Get Solana wallet address only
+    const solanaWallet = getSolanaWalletAddress(user)
     if (!solanaWallet) return null
 
     try {

@@ -1,9 +1,10 @@
 'use client'
 
-import { usePrivy } from '@privy-io/react-auth'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
+import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 
 interface Position {
   id: string
@@ -23,19 +24,17 @@ interface Position {
 }
 
 export default function PositionsPage() {
-  const { ready, authenticated, user, login } = usePrivy()
+  const { connectSolanaWallet, connecting, ready, authenticated } = useSolanaLogin()
+  const { address: walletAddress, isConnected: isSolanaConnected } = useSolanaWallet()
   const router = useRouter()
   const [positions, setPositions] = useState<Position[]>([])
   const [loading, setLoading] = useState(false)
   const fetchingRef = useRef(false)
   const lastWalletRef = useRef<string | null>(null)
 
-  // Get stable wallet address
-  const walletAddress = user?.wallet?.address || null
-
   useEffect(() => {
-    // Only fetch if ready, authenticated, and have wallet
-    if (!ready || !authenticated || !walletAddress) {
+    // Only fetch if ready, authenticated, and have Solana wallet
+    if (!ready || !isSolanaConnected || !walletAddress) {
       return
     }
 
@@ -63,7 +62,7 @@ export default function PositionsPage() {
     }
 
     fetchPositions()
-  }, [ready, authenticated, walletAddress])
+  }, [ready, isSolanaConnected, walletAddress])
 
   const handleClaim = async (positionId: string) => {
     if (!walletAddress) return
@@ -110,16 +109,21 @@ export default function PositionsPage() {
     )
   }
 
-  if (!authenticated) {
+  if (!authenticated || !isSolanaConnected) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="mb-4">Please connect your wallet to view positions</p>
+          <p className="mb-4">
+            {authenticated && !isSolanaConnected 
+              ? 'Please connect a Solana wallet to view positions'
+              : 'Please connect your Solana wallet to view positions'}
+          </p>
           <button
-            onClick={login}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            onClick={connectSolanaWallet}
+            disabled={connecting || !ready}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            Connect Wallet
+            {connecting ? 'Connecting...' : 'Connect Solana Wallet'}
           </button>
         </div>
       </div>

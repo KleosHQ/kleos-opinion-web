@@ -4,6 +4,7 @@ import { usePrivy } from '@privy-io/react-auth'
 import { Connection, PublicKey, VersionedTransaction } from '@solana/web3.js'
 import { useMemo } from 'react'
 import { ProtocolClient } from './client-wrapper'
+import { getSolanaWalletAddress } from '@/lib/utils/wallet'
 
 const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'
 
@@ -14,11 +15,8 @@ export function useSolanaClient() {
   const client = useMemo(() => new ProtocolClient(connection), [connection])
 
   const getWallet = () => {
-    // Get Solana wallet from Privy
-    if (!user) return null
-    
-    // Privy v3 provides Solana wallet access
-    const solanaWallet = user.wallet?.address
+    // Get Solana wallet from Privy - only Solana addresses
+    const solanaWallet = getSolanaWalletAddress(user)
     if (!solanaWallet) return null
 
     try {

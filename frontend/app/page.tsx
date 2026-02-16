@@ -1,10 +1,11 @@
 'use client'
 
-import { usePrivy } from '@privy-io/react-auth'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { marketsApi } from '@/lib/api'
 import { WalletScoreBadge } from '@/components/WalletScoreBadge'
+import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
+import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 
 interface Market {
   id: string
@@ -22,16 +23,14 @@ interface Market {
 }
 
 export default function Home() {
-  const { ready, authenticated, user, login, logout } = usePrivy()
+  const { connectSolanaWallet, connecting, ready, authenticated, logout } = useSolanaLogin()
+  const { address: walletAddress, isConnected: isSolanaConnected } = useSolanaWallet()
   const [markets, setMarkets] = useState<Market[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'Open' | 'Closed' | 'Settled'>('all')
   const fetchingRef = useRef(false)
   const lastFilterRef = useRef<string | null>(null)
   const hasInitializedRef = useRef(false)
-  
-  // Get wallet address - strings are compared by value, so this is stable
-  const walletAddress = user?.wallet?.address || null
 
   useEffect(() => {
     // Only fetch if ready
@@ -101,11 +100,11 @@ export default function Home() {
             <h1 className="text-5xl font-bold mb-2">Kanzz</h1>
             <p className="text-gray-400 text-lg">Prediction Market Protocol</p>
           </div>
-          {authenticated ? (
+          {isSolanaConnected && walletAddress ? (
             <div className="flex items-center gap-4">
               <WalletScoreBadge wallet={walletAddress} />
               <div className="px-4 py-2 bg-white text-black rounded-lg font-mono text-sm">
-                {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'Loading...'}
+                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
               </div>
               <Link 
                 href="/positions"
@@ -126,12 +125,25 @@ export default function Home() {
                 Disconnect
               </button>
             </div>
+          ) : authenticated && !isSolanaConnected ? (
+            <div className="flex flex-col items-end gap-2">
+              <div className="px-4 py-2 bg-red-900 text-white rounded-lg text-sm">
+                ⚠️ EVM wallet connected. Please connect a Solana wallet.
+              </div>
+              <button 
+                onClick={logout}
+                className="px-6 py-2 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg font-medium"
+              >
+                Disconnect & Connect Solana
+              </button>
+            </div>
           ) : (
             <button 
-              onClick={login}
-              className="px-8 py-3 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg font-semibold text-lg"
+              onClick={connectSolanaWallet}
+              disabled={connecting || !ready}
+              className="px-8 py-3 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg font-semibold text-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              Connect Wallet
+              {connecting ? 'Connecting...' : 'Connect Solana Wallet'}
             </button>
           )}
         </div>
