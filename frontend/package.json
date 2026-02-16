@@ -6,16 +6,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "generate:client": "cd .. && npx codama run --all"
   },
   "dependencies": {
+    "@codama/renderers-js": "^1.7.0",
     "@privy-io/react-auth": "^3.13.1",
+    "@solana/spl-token": "^0.4.8",
+    "@solana/web3.js": "^1.95.0",
     "axios": "^1.13.5",
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@codama/cli": "^1.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

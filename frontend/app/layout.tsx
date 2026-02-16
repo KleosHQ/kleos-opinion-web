@@ -20,22 +20,10 @@ export default function RootLayout({
               accentColor: '#ffffff',
             },
             embeddedWallets: {
-              createOnLogin: 'users-without-wallets',
+              solana: {
+                createOnLogin: 'users-without-wallets',
+              },
             },
-            solanaChains: [
-              {
-                id: 'solana:mainnet',
-                name: 'Solana Mainnet',
-                network: 'mainnet',
-                rpcUrl: 'https://api.mainnet-beta.solana.com',
-              },
-              {
-                id: 'solana:devnet',
-                name: 'Solana Devnet',
-                network: 'devnet',
-                rpcUrl: 'https://api.devnet.solana.com',
-              },
-            ],
           }}
         >
           {children}

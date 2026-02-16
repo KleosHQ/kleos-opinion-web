@@ -3,6 +3,10 @@
 import { usePrivy } from '@privy-io/react-auth'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { PublicKey } from '@solana/web3.js'
+import { marketsApi, protocolApi } from '@/lib/api'
+import { useSolanaClient } from '@/lib/solana/useSolanaClient'
+import { getProtocolPda } from '@/lib/solana/client'
 
 interface Protocol {
   id: string
@@ -16,11 +20,13 @@ interface Protocol {
 export default function AdminPage() {
   const { ready, authenticated, user, login } = usePrivy()
   const router = useRouter()
+  const { client, connection, getWallet, isConnected } = useSolanaClient()
+  
   const [protocol, setProtocol] = useState<Protocol | null>(null)
   const [loading, setLoading] = useState(false)
   const [creatingMarket, setCreatingMarket] = useState(false)
+  const [sendingTx, setSendingTx] = useState(false)
   const [marketForm, setMarketForm] = useState({
-    categoryId: '',
     startTs: '',
     endTs: '',
     itemsHash: '',
@@ -37,15 +43,63 @@ export default function AdminPage() {
   const fetchProtocol = async () => {
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:3001/api/protocol')
-      if (response.ok) {
-        const data = await response.json()
-        setProtocol(data)
+      const response = await protocolApi.get()
+      if (response.data) {
+        setProtocol(response.data)
       }
-    } catch (error) {
-      console.error('Error fetching protocol:', error)
+    } catch (error: any) {
+      // 404 means protocol not initialized yet - this is expected
+      if (error.response?.status === 404) {
+        setProtocol(null)
+      } else {
+        console.error('Error fetching protocol:', error)
+      }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleInitializeProtocol = async () => {
+    if (!authenticated || !user?.wallet?.address) {
+      alert('Please connect wallet')
+      return
+    }
+
+    const protocolFeeBps = prompt('Enter protocol fee in basis points (0-10000):')
+    if (!protocolFeeBps) return
+
+    setSendingTx(true)
+    try {
+      const admin = new PublicKey(user.wallet.address)
+      const feeBps = parseInt(protocolFeeBps)
+      
+      if (feeBps < 0 || feeBps > 10000) {
+        throw new Error('Protocol fee must be between 0 and 10000')
+      }
+
+      const transaction = await client.initializeProtocol(admin, feeBps)
+      
+      // Get recent blockhash
+      const { blockhash } = await connection.getLatestBlockhash()
+      transaction.recentBlockhash = blockhash
+      transaction.feePayer = admin
+
+      // Sign and send transaction
+      // Note: This requires Privy Solana wallet integration
+      alert('Transaction created. Sign with your wallet to complete.')
+      
+      // After transaction, sync with backend
+      await protocolApi.initialize({
+        protocolFeeBps: feeBps,
+        treasury: user.wallet.address, // Default treasury
+        adminAuthority: user.wallet.address,
+      })
+      
+      fetchProtocol()
+    } catch (error: any) {
+      alert(error.message || 'Failed to initialize protocol')
+    } finally {
+      setSendingTx(false)
     }
   }
 
@@ -62,25 +116,45 @@ export default function AdminPage() {
 
     setCreatingMarket(true)
     try {
-      const response = await fetch('http://localhost:3001/api/markets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...marketForm,
-          adminAuthority: user.wallet.address,
-        }),
+      // First create on backend
+      const backendResponse = await marketsApi.create({
+        categoryId: '0',
+        startTs: marketForm.startTs,
+        endTs: marketForm.endTs,
+        itemsHash: marketForm.itemsHash,
+        itemCount: parseInt(marketForm.itemCount),
+        tokenMint: marketForm.tokenMint,
+        adminAuthority: user.wallet.address,
       })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to create market')
+      // Then create on-chain
+      const admin = new PublicKey(user.wallet.address)
+      const tokenMint = new PublicKey(marketForm.tokenMint)
+      const itemsHashArray = marketForm.itemsHash.startsWith('0x')
+        ? Array.from(Buffer.from(marketForm.itemsHash.slice(2), 'hex'))
+        : Array.from(Buffer.from(marketForm.itemsHash, 'hex'))
+
+      if (itemsHashArray.length !== 32) {
+        throw new Error('Items hash must be 32 bytes')
       }
 
-      alert('Market created successfully!')
+      const transaction = await client.createMarket(
+        admin,
+        tokenMint,
+        BigInt(marketForm.startTs),
+        BigInt(marketForm.endTs),
+        itemsHashArray,
+        parseInt(marketForm.itemCount),
+        BigInt(protocol.marketCount)
+      )
+
+      const { blockhash } = await connection.getLatestBlockhash()
+      transaction.recentBlockhash = blockhash
+      transaction.feePayer = admin
+
+      alert('Market transaction created. Sign with your wallet to complete.')
+      
       setMarketForm({
-        categoryId: '',
         startTs: '',
         endTs: '',
         itemsHash: '',
@@ -101,79 +175,132 @@ export default function AdminPage() {
       return
     }
 
+    setSendingTx(true)
     try {
-      const response = await fetch(`http://localhost:3001/api/markets/${marketId}/open`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminAuthority: user.wallet.address }),
-      })
+      // Update backend
+      await marketsApi.open(marketId, { adminAuthority: user.wallet.address })
 
-      if (response.ok) {
-        alert('Market opened successfully!')
-      } else {
-        const error = await response.json()
-        alert(error.error || 'Failed to open market')
-      }
-    } catch (error) {
-      alert('Failed to open market')
+      // Create on-chain transaction
+      const admin = new PublicKey(user.wallet.address)
+      const market = new PublicKey(marketId) // This should be the market PDA
+      
+      const transaction = await client.openMarket(admin, market)
+      const { blockhash } = await connection.getLatestBlockhash()
+      transaction.recentBlockhash = blockhash
+      transaction.feePayer = admin
+
+      alert('Open market transaction created. Sign with your wallet to complete.')
+    } catch (error: any) {
+      alert(error.message || 'Failed to open market')
+    } finally {
+      setSendingTx(false)
     }
   }
 
   const handleCloseMarket = async (marketId: string) => {
+    setSendingTx(true)
     try {
-      const response = await fetch(`http://localhost:3001/api/markets/${marketId}/close`, {
-        method: 'POST',
-      })
+      await marketsApi.close(marketId)
 
-      if (response.ok) {
-        alert('Market closed successfully!')
-      } else {
-        const error = await response.json()
-        alert(error.error || 'Failed to close market')
-      }
-    } catch (error) {
-      alert('Failed to close market')
+      const market = new PublicKey(marketId)
+      const transaction = await client.closeMarket(market)
+      const { blockhash } = await connection.getLatestBlockhash()
+      transaction.recentBlockhash = blockhash
+
+      alert('Close market transaction created. Sign with your wallet to complete.')
+    } catch (error: any) {
+      alert(error.message || 'Failed to close market')
+    } finally {
+      setSendingTx(false)
     }
   }
 
-  const handleSettleMarket = async (marketId: string) => {
-    const winningItemIndex = prompt('Enter winning item index:')
-    if (winningItemIndex === null) return
+  const handleSettleMarket = async (marketId: string, tokenMint: string) => {
+    if (!protocol) {
+      alert('Protocol not found')
+      return
+    }
 
+    setSendingTx(true)
     try {
-      const response = await fetch(`http://localhost:3001/api/markets/${marketId}/settle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ winningItemIndex: parseInt(winningItemIndex) }),
+      await marketsApi.settle(marketId, { winningItemIndex: 0 }) // Default to item 0
+
+      const market = new PublicKey(marketId)
+      const mint = new PublicKey(tokenMint)
+      const treasury = new PublicKey(protocol.treasury)
+
+      const transaction = await client.settleMarket(market, mint, treasury)
+      const { blockhash } = await connection.getLatestBlockhash()
+      transaction.recentBlockhash = blockhash
+
+      alert('Settle market transaction created. Sign with your wallet to complete.')
+    } catch (error: any) {
+      alert(error.message || 'Failed to settle market')
+    } finally {
+      setSendingTx(false)
+    }
+  }
+
+  const handleUpdateProtocol = async () => {
+    if (!authenticated || !user?.wallet?.address || !protocol || protocol.adminAuthority !== user.wallet.address) {
+      alert('Unauthorized')
+      return
+    }
+
+    const feeBps = prompt('Enter new protocol fee (bps):', protocol.protocolFeeBps.toString())
+    const treasury = prompt('Enter treasury address:', protocol.treasury)
+    const paused = prompt('Paused? (true/false):', protocol.paused.toString())
+
+    if (!feeBps || !treasury) return
+
+    setSendingTx(true)
+    try {
+      await protocolApi.update({
+        protocolFeeBps: parseInt(feeBps),
+        treasury,
+        paused: paused === 'true',
+        adminAuthority: user.wallet.address,
       })
 
-      if (response.ok) {
-        alert('Market settled successfully!')
-      } else {
-        const error = await response.json()
-        alert(error.error || 'Failed to settle market')
-      }
-    } catch (error) {
-      alert('Failed to settle market')
+      const admin = new PublicKey(user.wallet.address)
+      const treasuryPubkey = new PublicKey(treasury)
+
+      const transaction = await client.updateProtocol(
+        admin,
+        parseInt(feeBps),
+        treasuryPubkey,
+        paused === 'true'
+      )
+
+      const { blockhash } = await connection.getLatestBlockhash()
+      transaction.recentBlockhash = blockhash
+      transaction.feePayer = admin
+
+      alert('Update protocol transaction created. Sign with your wallet to complete.')
+      fetchProtocol()
+    } catch (error: any) {
+      alert(error.message || 'Failed to update protocol')
+    } finally {
+      setSendingTx(false)
     }
   }
 
   if (!ready || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div>Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-white text-xl">Loading...</div>
       </div>
     )
   }
 
   if (!authenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center">
-          <p className="mb-4">Please connect your wallet</p>
+          <p className="text-white mb-4">Please connect your wallet</p>
           <button
             onClick={login}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="px-6 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors"
           >
             Connect Wallet
           </button>
@@ -185,142 +312,158 @@ export default function AdminPage() {
   const isAdmin = protocol && protocol.adminAuthority === user?.wallet?.address
 
   return (
-    <main className="min-h-screen p-8 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold">Admin Panel</h1>
-        <button
-          onClick={() => router.push('/')}
-          className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
-        >
-          Back to Markets
-        </button>
-      </div>
-
-      {protocol && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Protocol State</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-sm text-gray-600">Admin Authority</div>
-              <div className="font-mono text-xs">{protocol.adminAuthority}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600">Treasury</div>
-              <div className="font-mono text-xs">{protocol.treasury}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600">Protocol Fee (bps)</div>
-              <div className="font-medium">{protocol.protocolFeeBps}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600">Market Count</div>
-              <div className="font-medium">{protocol.marketCount}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600">Paused</div>
-              <div className="font-medium">{protocol.paused ? 'Yes' : 'No'}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600">Your Address</div>
-              <div className="font-mono text-xs">{user?.wallet?.address}</div>
-            </div>
-          </div>
-          {!isAdmin && (
-            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-yellow-800">You are not the admin. Some actions will be restricted.</p>
-            </div>
-          )}
+    <main className="min-h-screen bg-black text-white p-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex justify-between items-center mb-8 pb-6 border-b border-white">
+          <h1 className="text-4xl font-bold">Admin Panel</h1>
+          <button
+            onClick={() => router.push('/')}
+            className="px-4 py-2 border border-white hover:bg-white hover:text-black transition-colors rounded-lg"
+          >
+            Back to Markets
+          </button>
         </div>
-      )}
 
-      {isAdmin && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Create Market</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Category ID</label>
-              <input
-                type="text"
-                value={marketForm.categoryId}
-                onChange={(e) => setMarketForm({ ...marketForm, categoryId: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                placeholder="0"
-              />
+        {protocol && (
+          <div className="bg-black border border-white rounded-lg p-6 mb-6">
+            <h2 className="text-2xl font-semibold mb-4">Protocol State</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-sm text-gray-400 mb-1">Admin Authority</div>
+                <div className="font-mono text-xs break-all">{protocol.adminAuthority}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-400 mb-1">Treasury</div>
+                <div className="font-mono text-xs break-all">{protocol.treasury}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-400 mb-1">Protocol Fee (bps)</div>
+                <div className="font-medium">{protocol.protocolFeeBps}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-400 mb-1">Market Count</div>
+                <div className="font-medium">{protocol.marketCount}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-400 mb-1">Paused</div>
+                <div className="font-medium">{protocol.paused ? 'Yes' : 'No'}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-400 mb-1">Your Address</div>
+                <div className="font-mono text-xs break-all">{user?.wallet?.address}</div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Start Timestamp (Unix)</label>
-              <input
-                type="text"
-                value={marketForm.startTs}
-                onChange={(e) => setMarketForm({ ...marketForm, startTs: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                placeholder="1700000000"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">End Timestamp (Unix)</label>
-              <input
-                type="text"
-                value={marketForm.endTs}
-                onChange={(e) => setMarketForm({ ...marketForm, endTs: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                placeholder="1700100000"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Items Hash (hex)</label>
-              <input
-                type="text"
-                value={marketForm.itemsHash}
-                onChange={(e) => setMarketForm({ ...marketForm, itemsHash: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                placeholder="0x..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Item Count</label>
-              <input
-                type="number"
-                value={marketForm.itemCount}
-                onChange={(e) => setMarketForm({ ...marketForm, itemCount: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                placeholder="5"
-                min="2"
-                max="255"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Token Mint</label>
-              <input
-                type="text"
-                value={marketForm.tokenMint}
-                onChange={(e) => setMarketForm({ ...marketForm, tokenMint: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                placeholder="Token mint address"
-              />
-            </div>
+            {isAdmin && (
+              <button
+                onClick={handleUpdateProtocol}
+                disabled={sendingTx}
+                className="mt-4 px-6 py-2 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg disabled:bg-gray-400"
+              >
+                {sendingTx ? 'Processing...' : 'Update Protocol'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {!protocol && (
+          <div className="bg-black border border-white rounded-lg p-6 mb-6">
+            <h2 className="text-2xl font-semibold mb-4">Initialize Protocol</h2>
+            <p className="text-gray-400 mb-4">Protocol has not been initialized yet.</p>
             <button
-              onClick={handleCreateMarket}
-              disabled={creatingMarket}
-              className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+              onClick={handleInitializeProtocol}
+              disabled={sendingTx || !isConnected}
+              className="px-6 py-2 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg disabled:bg-gray-400"
             >
-              {creatingMarket ? 'Creating...' : 'Create Market'}
+              {sendingTx ? 'Initializing...' : 'Initialize Protocol'}
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4">Market Management</h2>
-        <p className="text-gray-600 mb-4">
-          Use the market detail pages to open, close, and settle markets.
-        </p>
-        <button
-          onClick={() => router.push('/')}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          View All Markets
-        </button>
+        {isAdmin && (
+          <div className="bg-black border border-white rounded-lg p-6 mb-6">
+            <h2 className="text-2xl font-semibold mb-4">Create Market</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Start Timestamp (Unix)</label>
+                <input
+                  type="text"
+                  value={marketForm.startTs}
+                  onChange={(e) => setMarketForm({ ...marketForm, startTs: e.target.value })}
+                  className="w-full px-4 py-2 bg-black border border-white rounded-lg text-white"
+                  placeholder="1700000000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">End Timestamp (Unix)</label>
+                <input
+                  type="text"
+                  value={marketForm.endTs}
+                  onChange={(e) => setMarketForm({ ...marketForm, endTs: e.target.value })}
+                  className="w-full px-4 py-2 bg-black border border-white rounded-lg text-white"
+                  placeholder="1700100000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Items Hash (hex, 32 bytes)</label>
+                <input
+                  type="text"
+                  value={marketForm.itemsHash}
+                  onChange={(e) => setMarketForm({ ...marketForm, itemsHash: e.target.value })}
+                  className="w-full px-4 py-2 bg-black border border-white rounded-lg text-white"
+                  placeholder="0x..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Item Count</label>
+                <input
+                  type="number"
+                  value={marketForm.itemCount}
+                  onChange={(e) => setMarketForm({ ...marketForm, itemCount: e.target.value })}
+                  className="w-full px-4 py-2 bg-black border border-white rounded-lg text-white"
+                  placeholder="5"
+                  min="2"
+                  max="255"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Token Mint</label>
+                <input
+                  type="text"
+                  value={marketForm.tokenMint}
+                  onChange={(e) => setMarketForm({ ...marketForm, tokenMint: e.target.value })}
+                  className="w-full px-4 py-2 bg-black border border-white rounded-lg text-white"
+                  placeholder="Token mint address"
+                />
+              </div>
+              <button
+                onClick={handleCreateMarket}
+                disabled={creatingMarket || sendingTx}
+                className="w-full px-6 py-3 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg disabled:bg-gray-400"
+              >
+                {creatingMarket ? 'Creating...' : 'Create Market'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!isAdmin && (
+          <div className="bg-black border border-yellow-600 rounded-lg p-6">
+            <p className="text-yellow-400">You are not the admin. Some actions will be restricted.</p>
+          </div>
+        )}
+
+        <div className="bg-black border border-white rounded-lg p-6">
+          <h2 className="text-2xl font-semibold mb-4">Market Management</h2>
+          <p className="text-gray-400 mb-4">
+            Use the market detail pages to open, close, and settle markets.
+          </p>
+          <button
+            onClick={() => router.push('/')}
+            className="px-6 py-2 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg"
+          >
+            View All Markets
+          </button>
+        </div>
       </div>
     </main>
   )
