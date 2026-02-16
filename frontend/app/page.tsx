@@ -1,9 +1,10 @@
 'use client'
 
 import { usePrivy } from '@privy-io/react-auth'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { marketsApi } from '@/lib/api'
+import { WalletScoreBadge } from '@/components/WalletScoreBadge'
 
 interface Market {
   id: string
@@ -25,25 +26,48 @@ export default function Home() {
   const [markets, setMarkets] = useState<Market[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'Open' | 'Closed' | 'Settled'>('all')
+  const fetchingRef = useRef(false)
+  const lastFilterRef = useRef<string | null>(null)
+  const hasInitializedRef = useRef(false)
+  
+  // Get wallet address - strings are compared by value, so this is stable
+  const walletAddress = user?.wallet?.address || null
 
   useEffect(() => {
-    if (ready) {
-      fetchMarkets()
+    // Only fetch if ready
+    if (!ready) {
+      return
     }
-  }, [ready, filter])
 
-  const fetchMarkets = async () => {
-    setLoading(true)
-    try {
-      const params = filter === 'all' ? undefined : { status: filter }
-      const response = await marketsApi.getAll(params)
-      setMarkets(response.data)
-    } catch (error) {
-      console.error('Error fetching markets:', error)
-    } finally {
-      setLoading(false)
+    // Check if filter changed
+    const filterChanged = lastFilterRef.current !== filter
+    
+    // Skip if already fetching or if filter hasn't changed and we've initialized
+    if (fetchingRef.current || (!filterChanged && hasInitializedRef.current)) {
+      return
     }
-  }
+
+    // Mark as fetching
+    fetchingRef.current = true
+    lastFilterRef.current = filter
+    hasInitializedRef.current = true
+
+    const fetchMarkets = async () => {
+      setLoading(true)
+      try {
+        const params = filter === 'all' ? undefined : { status: filter }
+        const response = await marketsApi.getAll(params)
+        setMarkets(response.data)
+      } catch (error) {
+        console.error('Error fetching markets:', error)
+      } finally {
+        setLoading(false)
+        fetchingRef.current = false
+      }
+    }
+
+    fetchMarkets()
+  }, [ready, filter])
 
   const formatTimestamp = (ts: string) => {
     const timestamp = Number(ts) * 1000
@@ -79,8 +103,9 @@ export default function Home() {
           </div>
           {authenticated ? (
             <div className="flex items-center gap-4">
+              <WalletScoreBadge wallet={walletAddress} />
               <div className="px-4 py-2 bg-white text-black rounded-lg font-mono text-sm">
-                {user?.wallet?.address?.slice(0, 6)}...{user?.wallet?.address?.slice(-4)}
+                {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'Loading...'}
               </div>
               <Link 
                 href="/positions"

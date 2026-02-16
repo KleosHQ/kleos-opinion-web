@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import { protocolRouter } from './routes/protocol'
 import { marketsRouter } from './routes/markets'
 import { positionsRouter } from './routes/positions'
+import { fairscaleRouter } from './routes/fairscale'
 
 dotenv.config()
 
@@ -20,6 +21,7 @@ app.get('/health', (req, res) => {
 app.use('/api/protocol', protocolRouter)
 app.use('/api/markets', marketsRouter)
 app.use('/api/positions', positionsRouter)
+app.use('/api/fairscale', fairscaleRouter)
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`)

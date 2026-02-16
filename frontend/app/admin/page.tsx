@@ -1,7 +1,7 @@
 'use client'
 
 import { usePrivy } from '@privy-io/react-auth'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { PublicKey } from '@solana/web3.js'
 import { marketsApi, protocolApi } from '@/lib/api'
@@ -33,14 +33,14 @@ export default function AdminPage() {
     itemCount: '',
     tokenMint: '',
   })
+  const fetchingRef = useRef(false)
+  const hasInitializedRef = useRef(false)
 
-  useEffect(() => {
-    if (ready) {
-      fetchProtocol()
-    }
-  }, [ready])
-
-  const fetchProtocol = async () => {
+  // Reusable fetch function
+  const fetchProtocol = useCallback(async () => {
+    if (fetchingRef.current) return
+    
+    fetchingRef.current = true
     setLoading(true)
     try {
       const response = await protocolApi.get()
@@ -56,8 +56,20 @@ export default function AdminPage() {
       }
     } finally {
       setLoading(false)
+      fetchingRef.current = false
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    // Only fetch if ready and not already initialized
+    if (!ready || hasInitializedRef.current) {
+      return
+    }
+
+    // Mark as initialized
+    hasInitializedRef.current = true
+    fetchProtocol()
+  }, [ready, fetchProtocol])
 
   const handleInitializeProtocol = async () => {
     if (!authenticated || !user?.wallet?.address) {

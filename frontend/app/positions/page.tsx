@@ -1,7 +1,7 @@
 'use client'
 
 import { usePrivy } from '@privy-io/react-auth'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -27,36 +27,66 @@ export default function PositionsPage() {
   const router = useRouter()
   const [positions, setPositions] = useState<Position[]>([])
   const [loading, setLoading] = useState(false)
+  const fetchingRef = useRef(false)
+  const lastWalletRef = useRef<string | null>(null)
+
+  // Get stable wallet address
+  const walletAddress = user?.wallet?.address || null
 
   useEffect(() => {
-    if (ready && authenticated && user?.wallet?.address) {
-      fetchPositions()
+    // Only fetch if ready, authenticated, and have wallet
+    if (!ready || !authenticated || !walletAddress) {
+      return
     }
-  }, [ready, authenticated, user])
 
-  const fetchPositions = async () => {
-    if (!user?.wallet?.address) return
-
-    setLoading(true)
-    try {
-      const response = await fetch(`http://localhost:3001/api/positions/user/${user.wallet.address}`)
-      const data = await response.json()
-      setPositions(data)
-    } catch (error) {
-      console.error('Error fetching positions:', error)
-    } finally {
-      setLoading(false)
+    // Skip if already fetching or wallet hasn't changed
+    if (fetchingRef.current || lastWalletRef.current === walletAddress) {
+      return
     }
-  }
+
+    // Mark as fetching
+    fetchingRef.current = true
+    lastWalletRef.current = walletAddress
+
+    const fetchPositions = async () => {
+      setLoading(true)
+      try {
+        const response = await fetch(`http://localhost:3001/api/positions/user/${walletAddress}`)
+        const data = await response.json()
+        setPositions(data)
+      } catch (error) {
+        console.error('Error fetching positions:', error)
+      } finally {
+        setLoading(false)
+        fetchingRef.current = false
+      }
+    }
+
+    fetchPositions()
+  }, [ready, authenticated, walletAddress])
 
   const handleClaim = async (positionId: string) => {
-    if (!user?.wallet?.address) return
+    if (!walletAddress) return
+
+    const fetchPositions = async () => {
+      if (!walletAddress) return
+      setLoading(true)
+      try {
+        const response = await fetch(`http://localhost:3001/api/positions/user/${walletAddress}`)
+        const data = await response.json()
+        setPositions(data)
+      } catch (error) {
+        console.error('Error fetching positions:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
 
     try {
       const response = await fetch(`http://localhost:3001/api/positions/${positionId}/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: user.wallet.address }),
+        body: JSON.stringify({ user: walletAddress }),
       })
 
       if (response.ok) {

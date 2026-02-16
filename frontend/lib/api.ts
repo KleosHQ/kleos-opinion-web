@@ -57,4 +57,19 @@ export const positionsApi = {
     api.post(`/positions/${positionId}/claim`, data),
 }
 
+// FairScale API
+export const fairscaleApi = {
+  getCompleteScore: (wallet: string) => api.get(`/fairscale/score/${wallet}`),
+  
+  getFairScore: (wallet: string) => api.get(`/fairscale/fairscore/${wallet}`),
+  
+  getWalletScore: (wallet: string) => api.get(`/fairscale/wallet-score/${wallet}`),
+  
+  checkMinimumScore: (wallet: string, minimumScore: number, useSocialScore?: boolean) =>
+    api.post('/fairscale/check-minimum', { wallet, minimumScore, useSocialScore }),
+  
+  checkTier: (wallet: string, minimumTier: 'bronze' | 'silver' | 'gold' | 'platinum') =>
+    api.post('/fairscale/check-tier', { wallet, minimumTier }),
+}
+
 export default api

@@ -1,7 +1,7 @@
 'use client'
 
 import { usePrivy } from '@privy-io/react-auth'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 
 interface Market {
@@ -41,25 +41,40 @@ export default function MarketDetailPage() {
   const [selectedItem, setSelectedItem] = useState<number | null>(null)
   const [rawStake, setRawStake] = useState('')
   const [effectiveStake, setEffectiveStake] = useState('')
+  const fetchingRef = useRef(false)
+  const lastMarketIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (ready) {
-      fetchMarket()
+    // Only fetch if ready and not already fetching
+    if (!ready || fetchingRef.current) {
+      return
     }
-  }, [ready, marketId])
 
-  const fetchMarket = async () => {
-    setLoading(true)
-    try {
-      const response = await fetch(`http://localhost:3001/api/markets/${marketId}`)
-      const data = await response.json()
-      setMarket(data)
-    } catch (error) {
-      console.error('Error fetching market:', error)
-    } finally {
-      setLoading(false)
+    // Skip if marketId hasn't changed
+    if (lastMarketIdRef.current === marketId) {
+      return
     }
-  }
+
+    // Mark as fetching
+    fetchingRef.current = true
+    lastMarketIdRef.current = marketId
+
+    const fetchMarket = async () => {
+      setLoading(true)
+      try {
+        const response = await fetch(`http://localhost:3001/api/markets/${marketId}`)
+        const data = await response.json()
+        setMarket(data)
+      } catch (error) {
+        console.error('Error fetching market:', error)
+      } finally {
+        setLoading(false)
+        fetchingRef.current = false
+      }
+    }
+
+    fetchMarket()
+  }, [ready, marketId])
 
   const handlePlacePosition = async () => {
     if (!authenticated || !user?.wallet?.address || !selectedItem || !rawStake || !effectiveStake) {
