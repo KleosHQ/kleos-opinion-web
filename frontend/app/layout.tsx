@@ -46,12 +46,18 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api`}
         <PrivyProvider
           appId={privyAppId}
           config={{
+            loginMethods: ['wallet', 'email'],
             appearance: {
               walletChainType: 'solana-only',
             },
             externalWallets: {
               solana: {
                 connectors: toSolanaWalletConnectors(),
+              },
+            },
+            embeddedWallets: {
+              solana: {
+                createOnLogin: 'users-without-wallets',
               },
             },
           }}
