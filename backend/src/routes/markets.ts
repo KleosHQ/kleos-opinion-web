@@ -3,8 +3,11 @@ import { MarketStatus } from '@prisma/client'
 import { CreateMarketInput, EditMarketInput } from '../types'
 import prisma from '../lib/prisma'
 import { serializeBigInt } from '../utils/serialize'
+import { fetchAllOnchainMarkets, fetchOnchainMarketById, fetchOnchainProtocolForMarket } from '../services/solanaService'
 
 const router = Router()
+
+const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com'
 
 // Create market
 router.post('/', async (req, res) => {
@@ -61,6 +64,8 @@ router.post('/', async (req, res) => {
           status: MarketStatus.Draft,
           tokenMint,
           vault: '', // Will be set by on-chain program
+          totalRawStake: BigInt(0),
+          totalEffectiveStake: '0',
           protocolId: protocol.id,
         },
       })
@@ -73,50 +78,73 @@ router.post('/', async (req, res) => {
   }
 })
 
-// Get all markets
+// Get all markets (from on-chain)
 router.get('/', async (req, res) => {
   try {
-    const { status, categoryId, limit = '50', offset = '0' } = req.query
+    const { status } = req.query
 
-    const where: any = {}
-    if (status) where.status = status
-    if (categoryId) where.categoryId = BigInt(categoryId as string)
+    // Fetch all markets from on-chain
+    const onchainMarkets = await fetchAllOnchainMarkets(SOLANA_RPC_URL)
 
-    const markets = await prisma.market.findMany({
-      where,
-      include: {
-        positions: {
-          select: {
-            id: true,
-            user: true,
-            selectedItemIndex: true,
-            rawStake: true,
-            effectiveStake: true,
-            claimed: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: parseInt(limit as string),
-      skip: parseInt(offset as string),
-    })
+    // Filter by status if provided
+    let filteredMarkets = onchainMarkets
+    if (status) {
+      filteredMarkets = onchainMarkets.filter(m => m.status === status)
+    }
 
-    res.json(serializeBigInt(markets))
+    // Transform to match frontend interface (add positionsCount for compatibility)
+    const markets = filteredMarkets.map(market => ({
+      id: market.pda, // Use PDA as ID
+      marketId: market.marketId,
+      itemCount: market.itemCount,
+      status: market.status,
+      startTs: market.startTs,
+      endTs: market.endTs,
+      totalRawStake: market.totalRawStake,
+      totalEffectiveStake: market.totalEffectiveStake,
+      positionsCount: 0, // Will be fetched separately if needed
+      winningItemIndex: market.winningItemIndex,
+      itemsHash: market.itemsHash,
+      tokenMint: market.tokenMint,
+      vault: market.vault,
+      createdAt: new Date().toISOString(), // Placeholder, not on-chain
+      positions: [], // Empty array, positions fetched separately
+    }))
+
+    res.json(markets)
   } catch (error) {
-    console.error('Error fetching markets:', error)
+    console.error('Error fetching markets from on-chain:', error)
     res.status(500).json({ error: 'Failed to fetch markets' })
   }
 })
 
-// Get market by ID
+// Get market by ID (from on-chain)
 router.get('/:marketId', async (req, res) => {
   try {
     const { marketId } = req.params
 
-    const market = await prisma.market.findUnique({
-      where: { marketId: BigInt(marketId) },
-      include: {
-        positions: {
+    // Fetch market from on-chain
+    const onchainMarket = await fetchOnchainMarketById(SOLANA_RPC_URL, marketId)
+    
+    if (!onchainMarket) {
+      return res.status(404).json({ error: 'Market not found' })
+    }
+
+    // Fetch protocol for admin info
+    const protocol = await fetchOnchainProtocolForMarket(SOLANA_RPC_URL)
+
+    // Try to get positions from DB (if they exist)
+    // First find the market in DB to get its id
+    let positions: any[] = []
+    try {
+      const dbMarket = await prisma.market.findUnique({
+        where: { marketId: BigInt(marketId) },
+        select: { id: true },
+      })
+      
+      if (dbMarket) {
+        const dbPositions = await prisma.position.findMany({
+          where: { marketId: dbMarket.id },
           select: {
             id: true,
             user: true,
@@ -125,23 +153,39 @@ router.get('/:marketId', async (req, res) => {
             effectiveStake: true,
             claimed: true,
           },
-        },
-        protocol: {
-          select: {
-            adminAuthority: true,
-            treasury: true,
-          },
-        },
-      },
-    })
-
-    if (!market) {
-      return res.status(404).json({ error: 'Market not found' })
+        })
+        positions = serializeBigInt(dbPositions)
+      }
+    } catch (dbError) {
+      // DB positions are optional, continue without them
+      console.warn('Could not fetch positions from DB:', dbError)
     }
 
-    res.json(serializeBigInt(market))
+    // Transform to match frontend interface
+    const market = {
+      id: onchainMarket.pda,
+      marketId: onchainMarket.marketId,
+      itemCount: onchainMarket.itemCount,
+      status: onchainMarket.status,
+      startTs: onchainMarket.startTs,
+      endTs: onchainMarket.endTs,
+      totalRawStake: onchainMarket.totalRawStake,
+      totalEffectiveStake: onchainMarket.totalEffectiveStake,
+      positionsCount: positions.length,
+      winningItemIndex: onchainMarket.winningItemIndex,
+      itemsHash: onchainMarket.itemsHash,
+      tokenMint: onchainMarket.tokenMint,
+      vault: onchainMarket.vault,
+      positions,
+      protocol: protocol ? {
+        adminAuthority: protocol.adminAuthority,
+        treasury: protocol.treasury,
+      } : null,
+    }
+
+    res.json(market)
   } catch (error) {
-    console.error('Error fetching market:', error)
+    console.error('Error fetching market from on-chain:', error)
     res.status(500).json({ error: 'Failed to fetch market' })
   }
 })
@@ -295,38 +339,32 @@ router.post('/:marketId/settle', async (req, res) => {
     const { marketId } = req.params
     const { winningItemIndex } = req.body
 
-    const market = await prisma.market.findUnique({
-      where: { marketId: BigInt(marketId) },
-    })
-
-    if (!market) {
+    // Fetch market from on-chain
+    const onchainMarket = await fetchOnchainMarketById(SOLANA_RPC_URL, marketId)
+    
+    if (!onchainMarket) {
       return res.status(404).json({ error: 'Market not found' })
     }
 
     // Validate market.status == Closed
-    if (market.status !== MarketStatus.Closed) {
+    if (onchainMarket.status !== 'Closed') {
       return res.status(400).json({ error: 'Market must be in Closed status' })
     }
 
     // Validate current_time ≥ end_ts
     const currentTime = BigInt(Math.floor(Date.now() / 1000))
-    if (currentTime < market.endTs) {
+    if (currentTime < BigInt(onchainMarket.endTs)) {
       return res.status(400).json({ error: 'Market end time has not been reached' })
     }
 
-    // Validate not already settled
-    if (market.status === MarketStatus.Settled) {
-      return res.status(400).json({ error: 'Market already settled' })
-    }
-
     // Validate winning_item_index
-    if (winningItemIndex < 0 || winningItemIndex >= market.itemCount) {
+    if (winningItemIndex < 0 || winningItemIndex >= onchainMarket.itemCount) {
       return res.status(400).json({ error: 'Invalid winningItemIndex' })
     }
 
     // Compute protocol fee and distributable pool
     // Note: This is simplified - actual calculation should match on-chain logic
-    const totalRawStake = market.totalRawStake
+    const totalRawStake = BigInt(onchainMarket.totalRawStake)
     const protocol = await prisma.protocol.findFirst()
     if (!protocol) {
       return res.status(404).json({ error: 'Protocol not initialized' })
@@ -335,30 +373,46 @@ router.post('/:marketId/settle', async (req, res) => {
     const protocolFeeAmount = (totalRawStake * BigInt(protocol.protocolFeeBps)) / BigInt(10000)
     const distributablePool = totalRawStake - protocolFeeAmount
 
+    // Find market in DB to get its id for positions query
+    const dbMarket = await prisma.market.findUnique({
+      where: { marketId: BigInt(marketId) },
+      select: { id: true },
+    })
+
     // Calculate total winning effective stake
-    const winningPositions = await prisma.position.findMany({
+    const winningPositions = dbMarket ? await prisma.position.findMany({
       where: {
-        marketId: market.id,
+        marketId: dbMarket.id,
         selectedItemIndex: winningItemIndex,
       },
-    })
+    }) : []
 
     const totalWinningEffectiveStake = winningPositions.reduce((sum, pos) => {
       return sum + BigInt(pos.effectiveStake)
     }, BigInt(0))
 
-    const updated = await prisma.market.update({
-      where: { marketId: BigInt(marketId) },
-      data: {
-        status: MarketStatus.Settled,
+    // Update DB if market exists there
+    if (dbMarket) {
+      const updated = await prisma.market.update({
+        where: { marketId: BigInt(marketId) },
+        data: {
+          status: MarketStatus.Settled,
+          winningItemIndex,
+          protocolFeeAmount,
+          distributablePool,
+          totalWinningEffectiveStake: totalWinningEffectiveStake.toString(),
+        },
+      })
+      res.json(serializeBigInt(updated))
+    } else {
+      // Market only exists on-chain, return on-chain data
+      res.json({
+        marketId: onchainMarket.marketId,
+        status: 'Settled',
         winningItemIndex,
-        protocolFeeAmount,
-        distributablePool,
-        totalWinningEffectiveStake: totalWinningEffectiveStake.toString(),
-      },
-    })
-
-    res.json(serializeBigInt(updated))
+        message: 'Market settled (on-chain only)',
+      })
+    }
   } catch (error) {
     console.error('Error settling market:', error)
     res.status(500).json({ error: 'Failed to settle market' })

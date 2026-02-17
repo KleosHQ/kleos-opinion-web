@@ -8,8 +8,6 @@ import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 import { MarketItemsDisplay } from '@/components/MarketItemsDisplay'
 import { marketsApi, positionsApi } from '@/lib/api'
 import { useSolanaClient } from '@/lib/solana/useSolanaClient'
-import { Connection } from '@solana/web3.js'
-import { fetchOnchainMarketById, fetchOnchainProtocol } from '@/lib/solana/onchainMarkets'
 
 interface Market {
   marketId: string
@@ -75,49 +73,21 @@ export default function MarketDetailPage() {
     lastMarketIdRef.current = marketId
 
     const fetchMarket = async () => {
+      if (fetchingRef.current || lastMarketIdRef.current === marketId) {
+        return
+      }
+
+      fetchingRef.current = true
+      lastMarketIdRef.current = marketId
+
       setLoading(true)
       try {
-        // 1) Try on-chain first (devnet). This is the source of truth.
-        const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'
-        const conn = new Connection(rpcUrl, 'confirmed')
-        const [onchainMarket, onchainProtocol] = await Promise.all([
-          fetchOnchainMarketById(conn, marketId),
-          fetchOnchainProtocol(conn),
-        ])
-
-        if (onchainMarket) {
-          // 2) Fetch positions from backend if present (optional; DB might be empty).
-          let positions: Position[] = []
-          try {
-            const posResp = await positionsApi.getByMarket(marketId)
-            positions = posResp.data || []
-          } catch {
-            positions = []
-          }
-
-          setMarket({
-            marketId: onchainMarket.marketId,
-            itemsHash: onchainMarket.itemsHash,
-            itemCount: onchainMarket.itemCount,
-            status: onchainMarket.status,
-            startTs: onchainMarket.startTs,
-            endTs: onchainMarket.endTs,
-            totalRawStake: onchainMarket.totalRawStake,
-            totalEffectiveStake: onchainMarket.totalEffectiveStake,
-            winningItemIndex: onchainMarket.winningItemIndex,
-            tokenMint: onchainMarket.tokenMint,
-            positions,
-            positionsCount: positions.length,
-            protocol: onchainProtocol ? { adminAuthority: onchainProtocol.adminAuthority } : undefined,
-          })
-          return
-        }
-
-        // Fallback: backend (if DB has it)
+        // Backend now fetches from on-chain
         const response = await marketsApi.getById(marketId)
         setMarket(response.data)
       } catch (error) {
         console.error('Error fetching market:', error)
+        setMarket(null)
       } finally {
         setLoading(false)
         fetchingRef.current = false
@@ -137,6 +107,7 @@ export default function MarketDetailPage() {
 
     setLoading(true)
     try {
+      // Backend now fetches from on-chain
       const response = await marketsApi.getById(marketId)
       setMarket(response.data)
     } catch (error) {
