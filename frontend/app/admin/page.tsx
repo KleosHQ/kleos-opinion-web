@@ -79,39 +79,27 @@ export default function AdminPage() {
       return
     }
 
-    const protocolFeeBps = prompt('Enter protocol fee in basis points (0-10000):')
-    if (!protocolFeeBps) return
+    // Default to 0 fee (can be changed later)
+    const feeBps = 0
 
     setSendingTx(true)
     try {
-      const admin = publicKey
-      const feeBps = parseInt(protocolFeeBps)
-      
-      if (feeBps < 0 || feeBps > 10000) {
-        throw new Error('Protocol fee must be between 0 and 10000')
-      }
-
-      const transaction = await client.initializeProtocol(admin, feeBps)
-      
-      // Get recent blockhash
-      const { blockhash } = await connection.getLatestBlockhash()
-      transaction.recentBlockhash = blockhash
-      transaction.feePayer = admin
-
-      // Sign and send transaction
-      // Note: This requires Privy Solana wallet integration
-      alert('Transaction created. Sign with your wallet to complete.')
-      
-      // After transaction, sync with backend
+      // Initialize on backend first (this makes you the admin)
+      // Note: On-chain initialization can be done separately if needed
       await protocolApi.initialize({
         protocolFeeBps: feeBps,
-        treasury: walletAddress, // Default treasury
-        adminAuthority: walletAddress,
+        treasury: walletAddress, // Default treasury to your wallet
+        adminAuthority: walletAddress, // You become the admin
       })
       
+      alert('Protocol initialized successfully! You are now the admin.')
       fetchProtocol()
     } catch (error: any) {
-      alert(error.message || 'Failed to initialize protocol')
+      if (error.response?.data?.error?.includes('already initialized')) {
+        alert('Protocol is already initialized. If you are not the admin, you cannot create markets.')
+      } else {
+        alert(error.response?.data?.error || error.message || 'Failed to initialize protocol')
+      }
     } finally {
       setSendingTx(false)
     }
@@ -387,87 +375,68 @@ export default function AdminPage() {
         {!protocol && (
           <div className="bg-black border border-white rounded-lg p-6 mb-6">
             <h2 className="text-2xl font-semibold mb-4">Initialize Protocol</h2>
-            <p className="text-gray-400 mb-4">Protocol has not been initialized yet.</p>
-            <button
-              onClick={handleInitializeProtocol}
-              disabled={sendingTx || !isConnected}
-              className="px-6 py-2 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg disabled:bg-gray-400"
-            >
-              {sendingTx ? 'Initializing...' : 'Initialize Protocol'}
-            </button>
+            {!isSolanaConnected ? (
+              <div className="space-y-4">
+                <p className="text-yellow-400 mb-4">
+                  ⚠️ You need to connect a Solana wallet first to become the admin.
+                </p>
+                <button
+                  onClick={connectSolanaWallet}
+                  disabled={connecting || !ready}
+                  className="px-6 py-3 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {connecting ? 'Connecting...' : 'Connect Solana Wallet'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-gray-400 mb-4">
+                  Protocol has not been initialized yet. Click the button below to initialize it and become the admin.
+                  Your wallet address: <span className="font-mono text-xs text-white">{walletAddress}</span>
+                </p>
+                <button
+                  onClick={handleInitializeProtocol}
+                  disabled={sendingTx}
+                  className="px-6 py-3 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg font-semibold disabled:bg-gray-400"
+                >
+                  {sendingTx ? 'Initializing...' : 'Initialize Protocol (Become Admin)'}
+                </button>
+                <p className="text-xs text-gray-500 mt-2">
+                  Note: This will set you as the admin authority. Protocol fee will be set to 0 by default (you can change it later).
+                </p>
+              </div>
+            )}
           </div>
         )}
 
         {isAdmin && (
           <div className="bg-black border border-white rounded-lg p-6 mb-6">
-            <h2 className="text-2xl font-semibold mb-4">Create Market</h2>
+            <h2 className="text-2xl font-semibold mb-4">Market Management</h2>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Start Timestamp (Unix)</label>
-                <input
-                  type="text"
-                  value={marketForm.startTs}
-                  onChange={(e) => setMarketForm({ ...marketForm, startTs: e.target.value })}
-                  className="w-full px-4 py-2 bg-black border border-white rounded-lg text-white"
-                  placeholder="1700000000"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">End Timestamp (Unix)</label>
-                <input
-                  type="text"
-                  value={marketForm.endTs}
-                  onChange={(e) => setMarketForm({ ...marketForm, endTs: e.target.value })}
-                  className="w-full px-4 py-2 bg-black border border-white rounded-lg text-white"
-                  placeholder="1700100000"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Items Hash (hex, 32 bytes)</label>
-                <input
-                  type="text"
-                  value={marketForm.itemsHash}
-                  onChange={(e) => setMarketForm({ ...marketForm, itemsHash: e.target.value })}
-                  className="w-full px-4 py-2 bg-black border border-white rounded-lg text-white"
-                  placeholder="0x..."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Item Count</label>
-                <input
-                  type="number"
-                  value={marketForm.itemCount}
-                  onChange={(e) => setMarketForm({ ...marketForm, itemCount: e.target.value })}
-                  className="w-full px-4 py-2 bg-black border border-white rounded-lg text-white"
-                  placeholder="5"
-                  min="2"
-                  max="255"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Token Mint</label>
-                <input
-                  type="text"
-                  value={marketForm.tokenMint}
-                  onChange={(e) => setMarketForm({ ...marketForm, tokenMint: e.target.value })}
-                  className="w-full px-4 py-2 bg-black border border-white rounded-lg text-white"
-                  placeholder="Token mint address"
-                />
-              </div>
-              <button
-                onClick={handleCreateMarket}
-                disabled={creatingMarket || sendingTx}
-                className="w-full px-6 py-3 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg disabled:bg-gray-400"
+              <Link
+                href="/markets/create"
+                className="block w-full px-6 py-3 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg text-center font-semibold"
               >
-                {creatingMarket ? 'Creating...' : 'Create Market'}
-              </button>
+                Create New Market
+              </Link>
+              <p className="text-sm text-gray-400">
+                Use the create market page to set up markets with items, timestamps, and token mints.
+              </p>
             </div>
           </div>
         )}
 
-        {!isAdmin && (
-          <div className="bg-black border border-yellow-600 rounded-lg p-6">
-            <p className="text-yellow-400">You are not the admin. Some actions will be restricted.</p>
+        {protocol && !isAdmin && (
+          <div className="bg-black border border-yellow-600 rounded-lg p-6 mb-6">
+            <h3 className="text-xl font-semibold mb-2 text-yellow-400">⚠️ Not Admin</h3>
+            <p className="text-yellow-400 mb-2">
+              You are not the admin. The current admin is:
+            </p>
+            <p className="font-mono text-xs text-white mb-4 break-all">{protocol.adminAuthority}</p>
+            <p className="text-gray-400 text-sm">
+              Only the admin can create markets. If you need to become admin, you'll need to initialize a new protocol
+              (or the current admin needs to transfer admin authority).
+            </p>
           </div>
         )}
 

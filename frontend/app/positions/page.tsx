@@ -131,91 +131,101 @@ export default function PositionsPage() {
   }
 
   return (
-    <main className="min-h-screen p-8 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold">My Positions</h1>
-        <Link
-          href="/"
-          className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
-        >
-          Back to Markets
-        </Link>
-      </div>
-
-      {loading ? (
-        <div className="text-center py-12">Loading positions...</div>
-      ) : positions.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <p className="mb-4">No positions found</p>
+    <main className="min-h-screen bg-black text-white p-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex justify-between items-center mb-8 pb-6 border-b border-white">
+          <h1 className="text-4xl font-bold">My Positions</h1>
           <Link
             href="/"
-            className="text-blue-600 hover:text-blue-800"
+            className="px-4 py-2 border border-white rounded-lg hover:bg-white hover:text-black transition-colors"
           >
-            Browse Markets
+            Back to Markets
           </Link>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {positions.map((position) => {
-            const isWinner = position.market.winningItemIndex === position.selectedItemIndex
-            const canClaim = position.market.status === 'Settled' && !position.claimed && isWinner
 
-            return (
-              <div
-                key={position.id}
-                className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <Link
-                      href={`/markets/${position.market.marketId}`}
-                      className="text-xl font-semibold text-blue-600 hover:text-blue-800"
-                    >
-                      Market #{position.market.marketId}
-                    </Link>
-                    <div className="text-sm text-gray-600 mt-1">
-                      Category: {position.market.categoryId} | Status: {position.market.status}
+        {loading ? (
+          <div className="text-center py-12 text-gray-400">Loading positions...</div>
+        ) : positions.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <p className="mb-4 text-xl">No positions found</p>
+            <Link
+              href="/"
+              className="text-white hover:text-gray-400 underline"
+            >
+              Browse Markets
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {positions.map((position) => {
+              const isWinner = position.market.winningItemIndex === position.selectedItemIndex
+              const canClaim = position.market.status === 'Settled' && !position.claimed && isWinner
+
+              return (
+                <div
+                  key={position.id}
+                  className="bg-black border border-white rounded-lg p-6"
+                >
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <Link
+                        href={`/markets/${position.market.marketId}`}
+                        className="text-2xl font-semibold text-white hover:text-gray-400 transition-colors"
+                      >
+                        Market #{position.market.marketId}
+                      </Link>
+                      <div className="text-sm text-gray-400 mt-2">
+                        Category: {position.market.categoryId} | Status: {position.market.status}
+                      </div>
+                    </div>
+                    {isWinner && position.market.status === 'Settled' && (
+                      <span className="px-4 py-2 bg-yellow-600 text-white rounded-lg text-sm font-medium">
+                        🏆 Winner
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
+                    <div>
+                      <div className="text-sm text-gray-400 mb-1">Selected Item</div>
+                      <div className="font-semibold text-lg">#{position.selectedItemIndex}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400 mb-1">Raw Stake</div>
+                      <div className="font-semibold text-lg">{Number(position.rawStake) / 1e9} SOL</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400 mb-1">Effective Stake</div>
+                      <div className="font-semibold text-lg">{Number(position.effectiveStake) / 1e9} SOL</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400 mb-1">Claimed</div>
+                      <div className="font-semibold text-lg">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          position.claimed 
+                            ? 'bg-green-900 text-green-200' 
+                            : 'bg-gray-800 text-gray-300'
+                        }`}>
+                          {position.claimed ? 'Yes' : 'No'}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  {isWinner && position.market.status === 'Settled' && (
-                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded text-sm font-medium">
-                      Winner
-                    </span>
+
+                  {canClaim && (
+                    <button
+                      onClick={() => handleClaim(position.id)}
+                      className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold"
+                    >
+                      Claim Payout
+                    </button>
                   )}
                 </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <div>
-                    <div className="text-sm text-gray-600">Selected Item</div>
-                    <div className="font-medium">#{position.selectedItemIndex}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-600">Raw Stake</div>
-                    <div className="font-medium">{Number(position.rawStake) / 1e9} SOL</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-600">Effective Stake</div>
-                    <div className="font-medium">{position.effectiveStake}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-600">Claimed</div>
-                    <div className="font-medium">{position.claimed ? 'Yes' : 'No'}</div>
-                  </div>
-                </div>
-
-                {canClaim && (
-                  <button
-                    onClick={() => handleClaim(position.id)}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    Claim Payout
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )}
+      </div>
     </main>
   )
 }

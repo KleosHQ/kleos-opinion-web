@@ -118,6 +118,12 @@ export default function Home() {
               >
                 Admin
               </Link>
+              <Link 
+                href="/markets/create"
+                className="px-6 py-2 border border-white hover:bg-white hover:text-black transition-colors rounded-lg"
+              >
+                Create Market
+              </Link>
               <button 
                 onClick={logout}
                 className="px-6 py-2 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg font-medium"

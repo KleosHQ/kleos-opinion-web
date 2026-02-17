@@ -72,4 +72,10 @@ export const fairscaleApi = {
     api.post('/fairscale/check-tier', { wallet, minimumTier }),
 }
 
+// Market Utils API
+export const marketUtilsApi = {
+  calculateItemsHash: (items: string[]) =>
+    api.post('/market-utils/calculate-items-hash', { items }),
+}
+
 export default api

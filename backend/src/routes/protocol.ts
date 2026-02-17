@@ -15,12 +15,17 @@ router.post('/initialize', async (req, res) => {
     }
 
     // Check if protocol already exists
-    const existing = await prisma.protocol.findUnique({
-      where: { adminAuthority },
-    })
+    const existing = await prisma.protocol.findFirst()
 
     if (existing) {
-      return res.status(400).json({ error: 'Protocol already initialized' })
+      // If protocol exists but with different admin, return error
+      if (existing.adminAuthority !== adminAuthority) {
+        return res.status(400).json({ 
+          error: `Protocol already initialized by different admin: ${existing.adminAuthority.substring(0, 8)}...` 
+        })
+      }
+      // If same admin tries to initialize again, just return existing
+      return res.json(existing)
     }
 
     const protocol = await prisma.protocol.create({

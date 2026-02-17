@@ -125,6 +125,12 @@ router.get('/:marketId', async (req, res) => {
             claimed: true,
           },
         },
+        protocol: {
+          select: {
+            adminAuthority: true,
+            treasury: true,
+          },
+        },
       },
     })
 
