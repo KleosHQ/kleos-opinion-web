@@ -43,11 +43,14 @@ export function useSolanaWallet() {
     }
   }, [address])
 
+  // If we have an address, we're connected (simplified check)
+  const isConnected = !!address
+
   return {
     wallet: solanaWallet,
     address,
     publicKey,
-    isConnected: !!solanaWallet && !!address,
+    isConnected,
     allWallets: solanaWallets,
   }
 }

@@ -13,21 +13,8 @@ export function useSolanaLogin() {
   const { wallets } = useWallets()
   const [connecting, setConnecting] = useState(false)
 
-  // Auto-disconnect EVM wallets immediately after connection
-  useEffect(() => {
-    if (!authenticated) return
-
-    // `@privy-io/react-auth/solana` should only return Solana wallets.
-    // We still defensively treat any 0x-style address as non-Solana.
-    const hasEVMWallet = wallets.some(wallet => wallet.address?.startsWith('0x'))
-    const hasSolanaWallet = wallets.some(wallet => wallet.address && !wallet.address.startsWith('0x') && wallet.address.length >= 32)
-
-    // If EVM wallet connected but no Solana, disconnect immediately
-    if (hasEVMWallet && !hasSolanaWallet) {
-      console.warn('EVM wallet detected. Disconnecting...')
-      logout()
-    }
-  }, [authenticated, wallets, logout])
+  // Auto-disconnect EVM wallets (handled by SolanaWalletGuard, so we don't need to do it here)
+  // This hook just provides the connection/login functionality
 
   const connectSolanaWallet = async () => {
     if (!ready) return
@@ -55,11 +42,25 @@ export function useSolanaLogin() {
     }
   }
 
+  // Enhanced logout that ensures complete disconnection
+  const handleLogout = async () => {
+    try {
+      // Privy's logout will clear the session and disconnect all wallets
+      await logout()
+      // Force a small delay to ensure state is cleared
+      await new Promise(resolve => setTimeout(resolve, 100))
+    } catch (error) {
+      console.error('Error during logout:', error)
+      // Still try to logout even if there's an error
+      logout()
+    }
+  }
+
   return {
     connectSolanaWallet,
     connecting,
     ready,
     authenticated,
-    logout,
+    logout: handleLogout,
   }
 }

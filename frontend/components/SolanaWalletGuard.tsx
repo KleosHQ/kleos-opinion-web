@@ -19,45 +19,33 @@ export function SolanaWalletGuard({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // Check immediately for EVM wallets and disconnect them
-    const checkWallets = () => {
-      // Check if any EVM wallets are connected
-      const evmWallets = wallets.filter(wallet => {
-        // `@privy-io/react-auth/solana` should only return Solana wallets,
-        // but we defensively treat any 0x-style address as EVM.
-        return !!wallet.address && wallet.address.startsWith('0x')
-      })
-
-      // If any EVM wallet is connected, disconnect immediately
-      if (evmWallets.length > 0) {
-        console.warn(`EVM wallet(s) detected (${evmWallets.length}). Disconnecting immediately...`)
-        hasCheckedRef.current = true
-        logout()
-        return
-      }
-
-      // Check if we have any Solana wallets
-      const hasSolanaWallet = wallets.some(wallet => {
-        return !!wallet.address && !wallet.address.startsWith('0x') && wallet.address.length >= 32
-      })
-
-      if (hasSolanaWallet) {
-        hasCheckedRef.current = true
-      }
+    // Only check once per authentication session to avoid re-render loops
+    if (hasCheckedRef.current) {
+      return
     }
 
-    // Check immediately
-    checkWallets()
+    // Check for EVM wallets and disconnect them (only once)
+    const evmWallets = wallets.filter(wallet => {
+      return !!wallet.address && wallet.address.startsWith('0x')
+    })
 
-    // Also check after short delays to catch wallets that connect asynchronously
-    const timer1 = setTimeout(checkWallets, 100)
-    const timer2 = setTimeout(checkWallets, 500)
-    const timer3 = setTimeout(checkWallets, 1000)
+    if (evmWallets.length > 0) {
+      console.warn(`EVM wallet(s) detected (${evmWallets.length}). Disconnecting...`)
+      hasCheckedRef.current = true
+      // Use setTimeout to avoid calling logout during render
+      setTimeout(() => {
+        logout()
+      }, 0)
+      return
+    }
 
-    return () => {
-      clearTimeout(timer1)
-      clearTimeout(timer2)
-      clearTimeout(timer3)
+    // Mark as checked if we have Solana wallets
+    const hasSolanaWallet = wallets.some(wallet => {
+      return !!wallet.address && !wallet.address.startsWith('0x')
+    })
+
+    if (hasSolanaWallet) {
+      hasCheckedRef.current = true
     }
   }, [authenticated, wallets, logout])
 

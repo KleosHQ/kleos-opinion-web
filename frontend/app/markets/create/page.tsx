@@ -19,7 +19,7 @@ const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.so
 export default function CreateMarketPage() {
   const router = useRouter()
   const { address: walletAddress, isConnected: isSolanaConnected, publicKey } = useSolanaWallet()
-  const { connectSolanaWallet, connecting, ready, authenticated } = useSolanaLogin()
+  const { connectSolanaWallet, connecting, ready, authenticated, logout } = useSolanaLogin()
   const { wallets } = useWallets()
   const { client } = useSolanaClient()
   const [protocol, setProtocol] = useState<any>(null)
@@ -220,12 +220,20 @@ export default function CreateMarketPage() {
     )
   }
 
-  if (!authenticated || !isSolanaConnected) {
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    )
+  }
+
+  if (!authenticated || !walletAddress) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center">
           <p className="text-white mb-4">
-            {authenticated && !isSolanaConnected 
+            {authenticated && !walletAddress 
               ? 'Please connect a Solana wallet to create markets'
               : 'Please connect your Solana wallet to create markets'}
           </p>
@@ -246,12 +254,27 @@ export default function CreateMarketPage() {
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-4xl font-bold">Create Market</h1>
-          <Link
-            href="/admin"
-            className="px-4 py-2 border border-white rounded-lg hover:bg-white hover:text-black transition-colors"
-          >
-            Back to Admin
-          </Link>
+          <div className="flex items-center gap-4">
+            <div className="px-4 py-2 bg-white text-black rounded-lg font-mono text-sm">
+              {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
+            </div>
+            <button
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                logout()
+              }}
+              className="px-4 py-2 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg font-medium"
+            >
+              Disconnect
+            </button>
+            <Link
+              href="/admin"
+              className="px-4 py-2 border border-white rounded-lg hover:bg-white hover:text-black transition-colors"
+            >
+              Back to Admin
+            </Link>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">

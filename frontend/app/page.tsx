@@ -1,62 +1,41 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
-import { marketsApi } from '@/lib/api'
 import { WalletScoreBadge } from '@/components/WalletScoreBadge'
 import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
 import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
+import { Connection } from '@solana/web3.js'
+import { fetchAllOnchainMarkets, type OnchainMarket } from '@/lib/solana/onchainMarkets'
 
-interface Market {
-  id: string
-  marketId: string
-  categoryId: string
-  itemCount: number
-  status: 'Draft' | 'Open' | 'Closed' | 'Settled'
-  startTs: string
-  endTs: string
-  totalRawStake: string
-  totalEffectiveStake: string
-  positionsCount: number
-  winningItemIndex: number | null
-  createdAt: string
-}
+type Market = OnchainMarket
 
 export default function Home() {
   const { connectSolanaWallet, connecting, ready, authenticated, logout } = useSolanaLogin()
   const { address: walletAddress, isConnected: isSolanaConnected } = useSolanaWallet()
   const [markets, setMarkets] = useState<Market[]>([])
   const [loading, setLoading] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'Open' | 'Closed' | 'Settled'>('all')
+  const [filter, setFilter] = useState<'all' | 'Draft' | 'Open' | 'Closed' | 'Settled'>('all')
   const fetchingRef = useRef(false)
-  const lastFilterRef = useRef<string | null>(null)
   const hasInitializedRef = useRef(false)
 
-  useEffect(() => {
-    // Only fetch if ready
-    if (!ready) {
-      return
-    }
+  const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'
+  const connection = useMemo(() => new Connection(rpcUrl, 'confirmed'), [rpcUrl])
 
-    // Check if filter changed
-    const filterChanged = lastFilterRef.current !== filter
-    
-    // Skip if already fetching or if filter hasn't changed and we've initialized
-    if (fetchingRef.current || (!filterChanged && hasInitializedRef.current)) {
-      return
-    }
+  useEffect(() => {
+    if (!ready) return
+    // Fetch once; filter is applied locally.
+    if (fetchingRef.current || hasInitializedRef.current) return
 
     // Mark as fetching
     fetchingRef.current = true
-    lastFilterRef.current = filter
     hasInitializedRef.current = true
 
     const fetchMarkets = async () => {
       setLoading(true)
       try {
-        const params = filter === 'all' ? undefined : { status: filter }
-        const response = await marketsApi.getAll(params)
-        setMarkets(response.data)
+        const all = await fetchAllOnchainMarkets(connection)
+        setMarkets(all)
       } catch (error) {
         console.error('Error fetching markets:', error)
       } finally {
@@ -66,7 +45,12 @@ export default function Home() {
     }
 
     fetchMarkets()
-  }, [ready, filter])
+  }, [ready, connection])
+
+  const displayedMarkets = useMemo(() => {
+    if (filter === 'all') return markets
+    return markets.filter((m) => m.status === filter)
+  }, [markets, filter])
 
   const formatTimestamp = (ts: string) => {
     const timestamp = Number(ts) * 1000
@@ -125,7 +109,11 @@ export default function Home() {
                 Create Market
               </Link>
               <button 
-                onClick={logout}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  logout()
+                }}
                 className="px-6 py-2 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg font-medium"
               >
                 Disconnect
@@ -156,7 +144,7 @@ export default function Home() {
 
         {/* Filter Buttons */}
         <div className="mb-8 flex gap-3">
-          {(['all', 'Open', 'Closed', 'Settled'] as const).map((status) => (
+          {(['all', 'Draft', 'Open', 'Closed', 'Settled'] as const).map((status) => (
             <button
               key={status}
               onClick={() => setFilter(status === 'all' ? 'all' : status)}
@@ -174,13 +162,13 @@ export default function Home() {
         {/* Markets Grid */}
         {loading ? (
           <div className="text-center py-24 text-gray-400 text-xl">Loading markets...</div>
-        ) : markets.length === 0 ? (
+        ) : displayedMarkets.length === 0 ? (
           <div className="text-center py-24 text-gray-400 text-xl">No markets found</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {markets.map((market) => (
+            {displayedMarkets.map((market) => (
               <Link 
-                key={market.id}
+                key={market.pda}
                 href={`/markets/${market.marketId}`}
                 className="block p-6 bg-black border border-white rounded-lg hover:bg-gray-900 transition-colors"
               >
@@ -197,12 +185,12 @@ export default function Home() {
                     <span className="font-semibold">{market.itemCount}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Positions:</span>
-                    <span className="font-semibold">{market.positionsCount}</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-gray-400">Total Stake:</span>
                     <span className="font-semibold">{Number(market.totalRawStake) / 1e9} SOL</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Token Mint:</span>
+                    <span className="font-mono text-xs">{market.tokenMint.slice(0, 4)}...{market.tokenMint.slice(-4)}</span>
                   </div>
                   <div className="pt-3 border-t border-gray-800">
                     <div className="text-gray-400 text-xs mb-1">Start:</div>

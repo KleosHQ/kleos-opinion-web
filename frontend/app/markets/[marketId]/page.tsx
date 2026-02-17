@@ -8,11 +8,11 @@ import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 import { MarketItemsDisplay } from '@/components/MarketItemsDisplay'
 import { marketsApi, positionsApi } from '@/lib/api'
 import { useSolanaClient } from '@/lib/solana/useSolanaClient'
+import { Connection } from '@solana/web3.js'
+import { fetchOnchainMarketById, fetchOnchainProtocol } from '@/lib/solana/onchainMarkets'
 
 interface Market {
-  id: string
   marketId: string
-  categoryId: string
   itemsHash: string
   itemCount: number
   status: 'Draft' | 'Open' | 'Closed' | 'Settled'
@@ -77,9 +77,45 @@ export default function MarketDetailPage() {
     const fetchMarket = async () => {
       setLoading(true)
       try {
-        const response = await fetch(`http://localhost:3001/api/markets/${marketId}`)
-        const data = await response.json()
-        setMarket(data)
+        // 1) Try on-chain first (devnet). This is the source of truth.
+        const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'
+        const conn = new Connection(rpcUrl, 'confirmed')
+        const [onchainMarket, onchainProtocol] = await Promise.all([
+          fetchOnchainMarketById(conn, marketId),
+          fetchOnchainProtocol(conn),
+        ])
+
+        if (onchainMarket) {
+          // 2) Fetch positions from backend if present (optional; DB might be empty).
+          let positions: Position[] = []
+          try {
+            const posResp = await positionsApi.getByMarket(marketId)
+            positions = posResp.data || []
+          } catch {
+            positions = []
+          }
+
+          setMarket({
+            marketId: onchainMarket.marketId,
+            itemsHash: onchainMarket.itemsHash,
+            itemCount: onchainMarket.itemCount,
+            status: onchainMarket.status,
+            startTs: onchainMarket.startTs,
+            endTs: onchainMarket.endTs,
+            totalRawStake: onchainMarket.totalRawStake,
+            totalEffectiveStake: onchainMarket.totalEffectiveStake,
+            winningItemIndex: onchainMarket.winningItemIndex,
+            tokenMint: onchainMarket.tokenMint,
+            positions,
+            positionsCount: positions.length,
+            protocol: onchainProtocol ? { adminAuthority: onchainProtocol.adminAuthority } : undefined,
+          })
+          return
+        }
+
+        // Fallback: backend (if DB has it)
+        const response = await marketsApi.getById(marketId)
+        setMarket(response.data)
       } catch (error) {
         console.error('Error fetching market:', error)
       } finally {
@@ -118,7 +154,7 @@ export default function MarketDetailPage() {
   }, [ready, fetchMarket])
 
   const handlePlacePosition = async () => {
-    if (!authenticated || !isSolanaConnected || !walletAddress || !selectedItem || !rawStake || !effectiveStake) {
+    if (!authenticated || !walletAddress || !selectedItem || !rawStake || !effectiveStake) {
       alert('Please fill all fields and connect a Solana wallet')
       return
     }
@@ -267,16 +303,16 @@ export default function MarketDetailPage() {
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-6">
             <div>
-              <div className="text-sm text-gray-400 mb-1">Category</div>
-              <div className="font-semibold text-lg">{market.categoryId}</div>
-            </div>
-            <div>
               <div className="text-sm text-gray-400 mb-1">Total Positions</div>
               <div className="font-semibold text-lg">{market.positionsCount}</div>
             </div>
             <div>
               <div className="text-sm text-gray-400 mb-1">Total Stake</div>
               <div className="font-semibold text-lg">{Number(market.totalRawStake) / 1e9} SOL</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-400 mb-1">Token Mint</div>
+              <div className="font-mono text-xs break-all">{market.tokenMint}</div>
             </div>
             <div>
               <div className="text-sm text-gray-400 mb-1">Start Time</div>

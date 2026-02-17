@@ -24,8 +24,8 @@ interface Position {
 }
 
 export default function PositionsPage() {
-  const { connectSolanaWallet, connecting, ready, authenticated } = useSolanaLogin()
-  const { address: walletAddress, isConnected: isSolanaConnected } = useSolanaWallet()
+  const { connectSolanaWallet, connecting, ready, authenticated, logout } = useSolanaLogin()
+  const { address: walletAddress } = useSolanaWallet()
   const router = useRouter()
   const [positions, setPositions] = useState<Position[]>([])
   const [loading, setLoading] = useState(false)
@@ -33,8 +33,8 @@ export default function PositionsPage() {
   const lastWalletRef = useRef<string | null>(null)
 
   useEffect(() => {
-    // Only fetch if ready, authenticated, and have Solana wallet
-    if (!ready || !isSolanaConnected || !walletAddress) {
+    // Only fetch if ready, authenticated, and have wallet address
+    if (!ready || !walletAddress) {
       return
     }
 
@@ -62,7 +62,7 @@ export default function PositionsPage() {
     }
 
     fetchPositions()
-  }, [ready, isSolanaConnected, walletAddress])
+  }, [ready, walletAddress])
 
   const handleClaim = async (positionId: string) => {
     if (!walletAddress) return
@@ -103,25 +103,25 @@ export default function PositionsPage() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div>Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-white text-xl">Loading...</div>
       </div>
     )
   }
 
-  if (!authenticated || !isSolanaConnected) {
+  if (!authenticated || !walletAddress) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center">
-          <p className="mb-4">
-            {authenticated && !isSolanaConnected 
+          <p className="mb-4 text-white">
+            {authenticated && !walletAddress 
               ? 'Please connect a Solana wallet to view positions'
               : 'Please connect your Solana wallet to view positions'}
           </p>
           <button
             onClick={connectSolanaWallet}
             disabled={connecting || !ready}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {connecting ? 'Connecting...' : 'Connect Solana Wallet'}
           </button>
@@ -135,12 +135,26 @@ export default function PositionsPage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8 pb-6 border-b border-white">
           <h1 className="text-4xl font-bold">My Positions</h1>
-          <Link
-            href="/"
-            className="px-4 py-2 border border-white rounded-lg hover:bg-white hover:text-black transition-colors"
-          >
-            Back to Markets
-          </Link>
+          <div className="flex items-center gap-4">
+            <div className="px-4 py-2 bg-white text-black rounded-lg font-mono text-sm">
+              {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
+            </div>
+            <button
+              onClick={(e) => {
+                e.preventDefault()
+                logout()
+              }}
+              className="px-4 py-2 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg font-medium"
+            >
+              Disconnect
+            </button>
+            <Link
+              href="/"
+              className="px-4 py-2 border border-white rounded-lg hover:bg-white hover:text-black transition-colors"
+            >
+              Back to Markets
+            </Link>
+          </div>
         </div>
 
         {loading ? (

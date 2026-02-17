@@ -82,7 +82,7 @@ export default function AdminPage() {
   }
 
   const handleCreateMarket = async () => {
-    if (!authenticated || !isSolanaConnected || !walletAddress || !publicKey) {
+    if (!authenticated || !walletAddress || !publicKey) {
       alert('Please connect a Solana wallet')
       return
     }
@@ -148,7 +148,7 @@ export default function AdminPage() {
   }
 
   const handleOpenMarket = async (marketId: string) => {
-    if (!authenticated || !isSolanaConnected || !walletAddress || !publicKey || !protocol || protocol.adminAuthority !== walletAddress) {
+    if (!authenticated || !walletAddress || !publicKey || !protocol || protocol.adminAuthority !== walletAddress) {
       alert('Unauthorized')
       return
     }
@@ -220,7 +220,7 @@ export default function AdminPage() {
   }
 
   const handleUpdateProtocol = async () => {
-    if (!authenticated || !isSolanaConnected || !walletAddress || !publicKey || !protocol || protocol.adminAuthority !== walletAddress) {
+    if (!authenticated || !walletAddress || !publicKey || !protocol || protocol.adminAuthority !== walletAddress) {
       alert('Unauthorized')
       return
     }
@@ -271,28 +271,18 @@ export default function AdminPage() {
     )
   }
 
-  if (!authenticated || !isSolanaConnected) {
+  if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-center">
-          <p className="text-white mb-4">
-            {authenticated && !isSolanaConnected 
-              ? 'Please connect a Solana wallet'
-              : 'Please connect your Solana wallet'}
-          </p>
-          <button
-            onClick={connectSolanaWallet}
-            disabled={connecting || !ready}
-            className="px-6 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {connecting ? 'Connecting...' : 'Connect Solana Wallet'}
-          </button>
-        </div>
+        <div className="text-white text-xl">Loading...</div>
       </div>
     )
   }
 
-  const isAdmin = protocol && protocol.adminAuthority === walletAddress
+  // Note: Admin page doesn't require wallet connection to view, only to perform actions
+  // So we don't block the page, just show warnings if wallet not connected
+
+  const isAdmin = protocol && walletAddress && protocol.adminAuthority === walletAddress
 
   return (
     <main className="min-h-screen bg-black text-white p-8">

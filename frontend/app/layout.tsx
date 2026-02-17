@@ -52,7 +52,9 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api`}
             },
             externalWallets: {
               solana: {
-                connectors: toSolanaWalletConnectors(),
+                connectors: toSolanaWalletConnectors({
+                  shouldAutoConnect: false,
+                }),
               },
             },
             embeddedWallets: {
