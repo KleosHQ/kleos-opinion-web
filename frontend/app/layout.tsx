@@ -1,6 +1,7 @@
 'use client'
 
 import { PrivyProvider } from '@privy-io/react-auth'
+import { toSolanaWalletConnectors } from '@privy-io/react-auth/solana'
 import { SolanaWalletGuard } from '@/components/SolanaWalletGuard'
 import "./globals.css";
 
@@ -45,24 +46,12 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api`}
         <PrivyProvider
           appId={privyAppId}
           config={{
-            // Disable email/SMS - only allow wallet connections (Solana only)
-            loginMethods: ['wallet'],
-            // Explicitly disable EVM chains
-            defaultChain: 'solana:devnet',
             appearance: {
-              theme: 'dark',
-              accentColor: '#ffffff',
+              walletChainType: 'solana-only',
             },
-            // Configure embedded wallets to only support Solana (no EVM)
-            embeddedWallets: {
-              solana: {
-                createOnLogin: 'users-without-wallets',
-              },
-            },
-            // Configure external wallets to only show Solana-compatible wallets
             externalWallets: {
               solana: {
-                connectors: ['phantom', 'solflare', 'backpack'],
+                connectors: toSolanaWalletConnectors(),
               },
             },
           }}

@@ -1,18 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { marketsApi } from '@/lib/api'
+import { marketsApi, protocolApi } from '@/lib/api'
 import { MarketItemsInput } from '@/components/MarketItemsInput'
 import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
 import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 import { calculateItemsHash } from '@/lib/utils/marketItems'
+import { useWallets } from '@privy-io/react-auth/solana'
+import { PublicKey, Transaction } from '@solana/web3.js'
+import { Connection } from '@solana/web3.js'
+import { useSolanaClient } from '@/lib/solana/useSolanaClient'
+import bs58 from 'bs58'
+
+const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'
 
 export default function CreateMarketPage() {
   const router = useRouter()
   const { address: walletAddress, isConnected: isSolanaConnected, publicKey } = useSolanaWallet()
   const { connectSolanaWallet, connecting, ready, authenticated } = useSolanaLogin()
+  const { wallets } = useWallets()
+  const { client } = useSolanaClient()
+  const [protocol, setProtocol] = useState<any>(null)
   
   const [creating, setCreating] = useState(false)
   const [formData, setFormData] = useState({
@@ -24,6 +34,25 @@ export default function CreateMarketPage() {
     itemsHash: '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const fetchProtocol = async () => {
+      try {
+        const response = await protocolApi.get()
+        setProtocol(response.data)
+      } catch (error: any) {
+        if (error?.response?.status === 404) {
+          setProtocol(null)
+        } else {
+          console.error('Error fetching protocol:', error)
+        }
+      }
+    }
+
+    if (ready) {
+      fetchProtocol()
+    }
+  }, [ready])
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
@@ -87,11 +116,74 @@ export default function CreateMarketPage() {
       return
     }
 
-    setCreating(true)
-    try {
-      // Calculate proper hash on backend
-      const itemsHash = await calculateItemsHash(formData.items)
+    if (!protocol) {
+      alert('Protocol not initialized. Please initialize protocol first.')
+      return
+    }
 
+    setCreating(true)
+    setErrors({})
+
+    try {
+      const solanaWallet = wallets.find(w => w.address && !w.address.startsWith('0x'))
+
+      if (!solanaWallet) {
+        throw new Error('No Solana wallet connected')
+      }
+
+      const adminPubkey = new PublicKey(walletAddress)
+      const tokenMintPubkey = new PublicKey(formData.tokenMint)
+      
+      // Calculate proper items hash
+      const itemsHash = await calculateItemsHash(formData.items)
+      const itemsHashBytes = Buffer.from(itemsHash.replace('0x', ''), 'hex')
+      
+      // Get market count
+      const marketCount = typeof protocol.marketCount === 'string' 
+        ? BigInt(protocol.marketCount) 
+        : BigInt(protocol.marketCount)
+
+      // Create on-chain transaction
+      const transaction = await client.createMarket(
+        adminPubkey,
+        tokenMintPubkey,
+        BigInt(formData.startTs),
+        BigInt(formData.endTs),
+        itemsHashBytes,
+        formData.items.length,
+        marketCount
+      )
+
+      // Get recent blockhash
+      const conn = new Connection(RPC_URL, 'confirmed')
+      const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash()
+      
+      if (transaction instanceof Transaction) {
+        transaction.recentBlockhash = blockhash
+        transaction.feePayer = adminPubkey
+      }
+
+      // Sign and send transaction
+      const serializedTx = transaction.serialize({
+        requireAllSignatures: false,
+        verifySignatures: false,
+      })
+      
+      const signResult = await solanaWallet.signAndSendTransaction({
+        transaction: new Uint8Array(serializedTx),
+        chain: 'solana:devnet',
+      })
+      const sigValue = typeof signResult === 'string' ? signResult : signResult.signature
+      const signature = typeof sigValue === 'string' ? sigValue : bs58.encode(sigValue)
+
+      // Wait for confirmation
+      await conn.confirmTransaction({
+        signature,
+        blockhash,
+        lastValidBlockHeight,
+      }, 'confirmed')
+
+      // After successful on-chain transaction, sync with backend
       const response = await marketsApi.create({
         categoryId: formData.categoryId,
         startTs: formData.startTs,
@@ -105,7 +197,8 @@ export default function CreateMarketPage() {
       alert('Market created successfully!')
       router.push(`/markets/${response.data.marketId}`)
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to create market')
+      console.error('Error creating market:', error)
+      setErrors({ submit: error.response?.data?.error || error.message || 'Failed to create market' })
     } finally {
       setCreating(false)
     }
@@ -194,21 +287,26 @@ export default function CreateMarketPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Start Timestamp</label>
-                <input
-                  type="text"
-                  value={formData.startTs}
-                  onChange={(e) => setFormData(prev => ({ ...prev, startTs: e.target.value }))}
-                  className="w-full px-4 py-2 bg-black border border-white rounded-lg text-white"
-                  placeholder="Unix timestamp"
-                />
-                <div className="mt-2 flex gap-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formData.startTs}
+                    onChange={(e) => setFormData(prev => ({ ...prev, startTs: e.target.value }))}
+                    className="flex-1 px-4 py-2 bg-black border border-white rounded-lg text-white"
+                    placeholder="Unix timestamp"
+                  />
                   <button
                     type="button"
                     onClick={() => setFormData(prev => ({ ...prev, startTs: getCurrentTimestamp() }))}
-                    className="text-xs px-2 py-1 border border-white rounded hover:bg-white hover:text-black"
+                    className="px-3 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center"
+                    title="Fill current timestamp"
                   >
-                    Now
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                   </button>
+                </div>
+                <div className="mt-2 flex gap-2">
                   <button
                     type="button"
                     onClick={() => setFormData(prev => ({ ...prev, startTs: getTimestampInDays(1) }))}
@@ -224,13 +322,25 @@ export default function CreateMarketPage() {
 
               <div>
                 <label className="block text-sm font-medium mb-2">End Timestamp</label>
-                <input
-                  type="text"
-                  value={formData.endTs}
-                  onChange={(e) => setFormData(prev => ({ ...prev, endTs: e.target.value }))}
-                  className="w-full px-4 py-2 bg-black border border-white rounded-lg text-white"
-                  placeholder="Unix timestamp"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formData.endTs}
+                    onChange={(e) => setFormData(prev => ({ ...prev, endTs: e.target.value }))}
+                    className="flex-1 px-4 py-2 bg-black border border-white rounded-lg text-white"
+                    placeholder="Unix timestamp"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, endTs: getCurrentTimestamp() }))}
+                    className="px-3 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center"
+                    title="Fill current timestamp"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                </div>
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
@@ -263,13 +373,19 @@ export default function CreateMarketPage() {
             )}
           </div>
 
+          {errors.submit && (
+            <div className="px-4 py-2 bg-red-900 text-red-200 rounded text-sm">
+              {errors.submit}
+            </div>
+          )}
+
           <div className="flex gap-4">
             <button
               type="submit"
-              disabled={creating}
+              disabled={creating || !protocol}
               className="flex-1 px-6 py-3 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {creating ? 'Creating Market...' : 'Create Market'}
+              {creating ? 'Creating & Signing Transaction...' : 'Create Market & Sign Transaction'}
             </button>
             <Link
               href="/admin"

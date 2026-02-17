@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { InitializeProtocolInput, UpdateProtocolInput } from '../types'
 import prisma from '../lib/prisma'
+import { serializeBigInt } from '../utils/serialize'
 
 const router = Router()
 
@@ -25,7 +26,7 @@ router.post('/initialize', async (req, res) => {
         })
       }
       // If same admin tries to initialize again, just return existing
-      return res.json(existing)
+      return res.json(serializeBigInt(existing))
     }
 
     const protocol = await prisma.protocol.create({
@@ -38,7 +39,7 @@ router.post('/initialize', async (req, res) => {
       },
     })
 
-    res.json(protocol)
+    res.json(serializeBigInt(protocol))
   } catch (error) {
     console.error('Error initializing protocol:', error)
     res.status(500).json({ error: 'Failed to initialize protocol' })
@@ -54,7 +55,7 @@ router.get('/', async (req, res) => {
       return res.status(404).json({ error: 'Protocol not initialized' })
     }
 
-    res.json(protocol)
+    res.json(serializeBigInt(protocol))
   } catch (error) {
     console.error('Error fetching protocol:', error)
     res.status(500).json({ error: 'Failed to fetch protocol' })
@@ -91,7 +92,7 @@ router.put('/', async (req, res) => {
       data: updateData,
     })
 
-    res.json(updated)
+    res.json(serializeBigInt(updated))
   } catch (error) {
     console.error('Error updating protocol:', error)
     res.status(500).json({ error: 'Failed to update protocol' })

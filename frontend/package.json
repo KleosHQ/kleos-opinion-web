@@ -12,6 +12,11 @@
   "dependencies": {
     "@codama/renderers-js": "^1.7.0",
     "@privy-io/react-auth": "^3.13.1",
+    "bs58": "^6.0.0",
+    "@solana-program/memo": "*",
+    "@solana-program/system": "*",
+    "@solana-program/token": "*",
+    "@solana/kit": "*",
     "@solana/spl-token": "^0.4.8",
     "@solana/web3.js": "^1.95.0",
     "axios": "^1.13.5",

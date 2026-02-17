@@ -8,6 +8,8 @@ import { useSolanaClient } from '@/lib/solana/useSolanaClient'
 import { getProtocolPda } from '@/lib/solana/client'
 import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
 import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
+import { InitializeProtocolModal } from '@/components/InitializeProtocolModal'
+import { CreateMarketModal } from '@/components/CreateMarketModal'
 
 interface Protocol {
   id: string
@@ -28,6 +30,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false)
   const [creatingMarket, setCreatingMarket] = useState(false)
   const [sendingTx, setSendingTx] = useState(false)
+  const [showInitModal, setShowInitModal] = useState(false)
+  const [showCreateMarketModal, setShowCreateMarketModal] = useState(false)
   const [marketForm, setMarketForm] = useState({
     startTs: '',
     endTs: '',
@@ -73,36 +77,8 @@ export default function AdminPage() {
     fetchProtocol()
   }, [ready, fetchProtocol])
 
-  const handleInitializeProtocol = async () => {
-    if (!authenticated || !isSolanaConnected || !walletAddress || !publicKey) {
-      alert('Please connect a Solana wallet')
-      return
-    }
-
-    // Default to 0 fee (can be changed later)
-    const feeBps = 0
-
-    setSendingTx(true)
-    try {
-      // Initialize on backend first (this makes you the admin)
-      // Note: On-chain initialization can be done separately if needed
-      await protocolApi.initialize({
-        protocolFeeBps: feeBps,
-        treasury: walletAddress, // Default treasury to your wallet
-        adminAuthority: walletAddress, // You become the admin
-      })
-      
-      alert('Protocol initialized successfully! You are now the admin.')
-      fetchProtocol()
-    } catch (error: any) {
-      if (error.response?.data?.error?.includes('already initialized')) {
-        alert('Protocol is already initialized. If you are not the admin, you cannot create markets.')
-      } else {
-        alert(error.response?.data?.error || error.message || 'Failed to initialize protocol')
-      }
-    } finally {
-      setSendingTx(false)
-    }
+  const handleInitializeSuccess = () => {
+    fetchProtocol()
   }
 
   const handleCreateMarket = async () => {
@@ -395,11 +371,11 @@ export default function AdminPage() {
                   Your wallet address: <span className="font-mono text-xs text-white">{walletAddress}</span>
                 </p>
                 <button
-                  onClick={handleInitializeProtocol}
+                  onClick={() => setShowInitModal(true)}
                   disabled={sendingTx}
                   className="px-6 py-3 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg font-semibold disabled:bg-gray-400"
                 >
-                  {sendingTx ? 'Initializing...' : 'Initialize Protocol (Become Admin)'}
+                  Initialize Protocol (Become Admin)
                 </button>
                 <p className="text-xs text-gray-500 mt-2">
                   Note: This will set you as the admin authority. Protocol fee will be set to 0 by default (you can change it later).
@@ -413,14 +389,14 @@ export default function AdminPage() {
           <div className="bg-black border border-white rounded-lg p-6 mb-6">
             <h2 className="text-2xl font-semibold mb-4">Market Management</h2>
             <div className="space-y-4">
-              <Link
-                href="/markets/create"
+              <button
+                onClick={() => setShowCreateMarketModal(true)}
                 className="block w-full px-6 py-3 bg-white text-black hover:bg-gray-200 transition-colors rounded-lg text-center font-semibold"
               >
                 Create New Market
-              </Link>
+              </button>
               <p className="text-sm text-gray-400">
-                Use the create market page to set up markets with items, timestamps, and token mints.
+                Create markets with items, timestamps, and token mints. Transaction will be signed with your wallet.
               </p>
             </div>
           </div>
@@ -452,6 +428,24 @@ export default function AdminPage() {
             View All Markets
           </button>
         </div>
+
+        <InitializeProtocolModal
+          isOpen={showInitModal}
+          onClose={() => setShowInitModal(false)}
+          onSuccess={handleInitializeSuccess}
+        />
+
+        {protocol && (
+          <CreateMarketModal
+            isOpen={showCreateMarketModal}
+            onClose={() => setShowCreateMarketModal(false)}
+            onSuccess={() => {
+              setShowCreateMarketModal(false)
+              // Optionally refresh markets list
+            }}
+            protocolMarketCount={protocol.marketCount}
+          />
+        )}
       </div>
     </main>
   )

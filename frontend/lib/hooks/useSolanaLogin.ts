@@ -17,23 +17,10 @@ export function useSolanaLogin() {
   useEffect(() => {
     if (!authenticated) return
 
-    // Check for EVM wallets
-    const hasEVMWallet = wallets.some(wallet => {
-      return (
-        wallet.chainType === 'ethereum' ||
-        wallet.chainId?.startsWith('eip155:') ||
-        (wallet.address && wallet.address.startsWith('0x'))
-      )
-    })
-
-    // Check for Solana wallets
-    const hasSolanaWallet = wallets.some(wallet => {
-      return (
-        wallet.chainType === 'solana' ||
-        wallet.chainId?.startsWith('solana:') ||
-        (wallet.address && !wallet.address.startsWith('0x') && wallet.address.length >= 32)
-      )
-    })
+    // `@privy-io/react-auth/solana` should only return Solana wallets.
+    // We still defensively treat any 0x-style address as non-Solana.
+    const hasEVMWallet = wallets.some(wallet => wallet.address?.startsWith('0x'))
+    const hasSolanaWallet = wallets.some(wallet => wallet.address && !wallet.address.startsWith('0x') && wallet.address.length >= 32)
 
     // If EVM wallet connected but no Solana, disconnect immediately
     if (hasEVMWallet && !hasSolanaWallet) {
@@ -49,9 +36,7 @@ export function useSolanaLogin() {
     try {
       // Check if there are any existing Solana wallets
       const existingSolanaWallets = wallets.filter(wallet => 
-        wallet.chainType === 'solana' || 
-        wallet.chainId?.startsWith('solana:') ||
-        (wallet.address && !wallet.address.startsWith('0x') && wallet.address.length >= 32)
+        wallet.address && !wallet.address.startsWith('0x') && wallet.address.length >= 32
       )
 
       if (existingSolanaWallets.length > 0) {

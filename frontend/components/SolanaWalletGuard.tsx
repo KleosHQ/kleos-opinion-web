@@ -23,11 +23,9 @@ export function SolanaWalletGuard({ children }: { children: React.ReactNode }) {
     const checkWallets = () => {
       // Check if any EVM wallets are connected
       const evmWallets = wallets.filter(wallet => {
-        return (
-          wallet.chainType === 'ethereum' ||
-          wallet.chainId?.startsWith('eip155:') ||
-          (wallet.address && wallet.address.startsWith('0x'))
-        )
+        // `@privy-io/react-auth/solana` should only return Solana wallets,
+        // but we defensively treat any 0x-style address as EVM.
+        return !!wallet.address && wallet.address.startsWith('0x')
       })
 
       // If any EVM wallet is connected, disconnect immediately
@@ -40,11 +38,7 @@ export function SolanaWalletGuard({ children }: { children: React.ReactNode }) {
 
       // Check if we have any Solana wallets
       const hasSolanaWallet = wallets.some(wallet => {
-        return (
-          wallet.chainType === 'solana' ||
-          wallet.chainId?.startsWith('solana:') ||
-          (wallet.address && !wallet.address.startsWith('0x') && wallet.address.length >= 32)
-        )
+        return !!wallet.address && !wallet.address.startsWith('0x') && wallet.address.length >= 32
       })
 
       if (hasSolanaWallet) {

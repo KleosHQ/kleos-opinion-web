@@ -59,7 +59,7 @@ export function useFairscale(wallet: string | null) {
       setError(null)
 
       try {
-        const response = await fairscaleApi.getCompleteScore(wallet)
+        const response = await fairscaleApi.getCompleteScore(wallet!)
         setScore(response.data)
       } catch (err: any) {
         setError(err.response?.data?.error || new Error('Failed to fetch wallet score'))
@@ -107,7 +107,7 @@ export function useFairScore(wallet: string | null) {
       setError(null)
 
       try {
-        const response = await fairscaleApi.getFairScore(wallet)
+        const response = await fairscaleApi.getFairScore(wallet!)
         setFairScore(response.data.fair_score)
       } catch (err: any) {
         setError(err.response?.data?.error || new Error('Failed to fetch FairScore'))

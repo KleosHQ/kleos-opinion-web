@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { MarketStatus } from '@prisma/client'
 import { CreateMarketInput, EditMarketInput } from '../types'
 import prisma from '../lib/prisma'
+import { serializeBigInt } from '../utils/serialize'
 
 const router = Router()
 
@@ -65,7 +66,7 @@ router.post('/', async (req, res) => {
       })
     })
 
-    res.json(market)
+    res.json(serializeBigInt(market))
   } catch (error) {
     console.error('Error creating market:', error)
     res.status(500).json({ error: 'Failed to create market' })
@@ -100,7 +101,7 @@ router.get('/', async (req, res) => {
       skip: parseInt(offset as string),
     })
 
-    res.json(markets)
+    res.json(serializeBigInt(markets))
   } catch (error) {
     console.error('Error fetching markets:', error)
     res.status(500).json({ error: 'Failed to fetch markets' })
@@ -138,7 +139,7 @@ router.get('/:marketId', async (req, res) => {
       return res.status(404).json({ error: 'Market not found' })
     }
 
-    res.json(market)
+    res.json(serializeBigInt(market))
   } catch (error) {
     console.error('Error fetching market:', error)
     res.status(500).json({ error: 'Failed to fetch market' })
@@ -202,7 +203,7 @@ router.put('/:marketId', async (req, res) => {
       data: updateData,
     })
 
-    res.json(updated)
+    res.json(serializeBigInt(updated))
   } catch (error) {
     console.error('Error editing market:', error)
     res.status(500).json({ error: 'Failed to edit market' })
@@ -245,7 +246,7 @@ router.post('/:marketId/open', async (req, res) => {
       data: { status: MarketStatus.Open },
     })
 
-    res.json(updated)
+    res.json(serializeBigInt(updated))
   } catch (error) {
     console.error('Error opening market:', error)
     res.status(500).json({ error: 'Failed to open market' })
@@ -281,7 +282,7 @@ router.post('/:marketId/close', async (req, res) => {
       data: { status: MarketStatus.Closed },
     })
 
-    res.json(updated)
+    res.json(serializeBigInt(updated))
   } catch (error) {
     console.error('Error closing market:', error)
     res.status(500).json({ error: 'Failed to close market' })
@@ -357,7 +358,7 @@ router.post('/:marketId/settle', async (req, res) => {
       },
     })
 
-    res.json(updated)
+    res.json(serializeBigInt(updated))
   } catch (error) {
     console.error('Error settling market:', error)
     res.status(500).json({ error: 'Failed to settle market' })

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { MarketStatus } from '@prisma/client'
 import { PlacePositionInput } from '../types'
 import prisma from '../lib/prisma'
+import { serializeBigInt } from '../utils/serialize'
 
 const router = Router()
 
@@ -120,7 +121,7 @@ router.get('/market/:marketId', async (req, res) => {
       orderBy: { createdAt: 'desc' },
     })
 
-    res.json(positions)
+    res.json(serializeBigInt(positions))
   } catch (error) {
     console.error('Error fetching positions:', error)
     res.status(500).json({ error: 'Failed to fetch positions' })
@@ -148,7 +149,7 @@ router.get('/user/:user', async (req, res) => {
       orderBy: { createdAt: 'desc' },
     })
 
-    res.json(positions)
+    res.json(serializeBigInt(positions))
   } catch (error) {
     console.error('Error fetching user positions:', error)
     res.status(500).json({ error: 'Failed to fetch user positions' })
@@ -171,7 +172,7 @@ router.get('/:positionId', async (req, res) => {
       return res.status(404).json({ error: 'Position not found' })
     }
 
-    res.json(position)
+    res.json(serializeBigInt(position))
   } catch (error) {
     console.error('Error fetching position:', error)
     res.status(500).json({ error: 'Failed to fetch position' })
@@ -236,11 +237,11 @@ router.post('/:positionId/claim', async (req, res) => {
       data: { claimed: true },
     })
 
-    res.json({
+    res.json(serializeBigInt({
       position: updated,
       payout: payout.toString(),
       message: 'Payout calculated. Actual transfer will happen on-chain.',
-    })
+    }))
   } catch (error) {
     console.error('Error claiming payout:', error)
     res.status(500).json({ error: 'Failed to claim payout' })

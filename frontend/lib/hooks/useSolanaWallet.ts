@@ -11,16 +11,10 @@ import { PublicKey } from '@solana/web3.js'
 export function useSolanaWallet() {
   const { wallets } = useWallets()
 
-  // Filter for Solana wallets only
+  // `@privy-io/react-auth/solana` already returns Solana wallets,
+  // but we'll still defensively exclude any 0x-style addresses.
   const solanaWallets = useMemo(() => {
-    return wallets.filter(wallet => {
-      // Check if wallet is Solana-based
-      return (
-        wallet.chainType === 'solana' ||
-        wallet.chainId?.startsWith('solana:') ||
-        wallet.walletClientType === 'solana'
-      )
-    })
+    return wallets.filter(wallet => wallet.address && !wallet.address.startsWith('0x'))
   }, [wallets])
 
   // Get the first Solana wallet
