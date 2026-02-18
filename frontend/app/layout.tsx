@@ -59,7 +59,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api`}
             },
             embeddedWallets: {
               solana: {
-                createOnLogin: 'users-without-wallets',
+                createOnLogin: 'off', // Don't auto-create wallets, user must manually connect
               },
             },
           }}

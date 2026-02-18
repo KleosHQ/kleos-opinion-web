@@ -21,7 +21,16 @@ export function useSolanaLogin() {
 
     setConnecting(true)
     try {
-      // Check if there are any existing Solana wallets
+      // If not authenticated, login first
+      if (!authenticated) {
+        await login()
+        // After login, Privy will show wallet selection modal
+        // User must manually select their wallet
+        setConnecting(false)
+        return
+      }
+
+      // If authenticated but no Solana wallet, try to connect
       const existingSolanaWallets = wallets.filter(wallet => 
         wallet.address && !wallet.address.startsWith('0x') && wallet.address.length >= 32
       )
@@ -32,8 +41,7 @@ export function useSolanaLogin() {
         return
       }
 
-      // Use Privy's login - the externalWallets config should filter to Solana only
-      // But we'll also check after connection and disconnect EVM if needed
+      // If authenticated but no Solana wallet, show login modal again to connect wallet
       await login()
     } catch (error) {
       console.error('Error connecting Solana wallet:', error)
@@ -45,14 +53,39 @@ export function useSolanaLogin() {
   // Enhanced logout that ensures complete disconnection
   const handleLogout = async () => {
     try {
-      // Privy's logout will clear the session and disconnect all wallets
+      // Disconnect all wallets first
+      for (const wallet of wallets) {
+        try {
+          await wallet.disconnect()
+        } catch (err) {
+          console.warn('Error disconnecting wallet:', err)
+        }
+      }
+      
+      // Then logout from Privy (clears session)
       await logout()
+      
       // Force a small delay to ensure state is cleared
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise(resolve => setTimeout(resolve, 200))
+      
+      // Clear any cached wallet data
+      if (typeof window !== 'undefined') {
+        // Clear any localStorage/sessionStorage if needed
+        try {
+          localStorage.removeItem('privy:connected')
+          sessionStorage.clear()
+        } catch (e) {
+          // Ignore storage errors
+        }
+      }
     } catch (error) {
       console.error('Error during logout:', error)
       // Still try to logout even if there's an error
-      logout()
+      try {
+        await logout()
+      } catch (e) {
+        console.error('Failed to logout:', e)
+      }
     }
   }
 

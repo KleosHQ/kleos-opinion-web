@@ -7,13 +7,20 @@ import { useEffect, useRef } from 'react'
 /**
  * Component that automatically disconnects EVM wallets
  * and ensures only Solana wallets are connected
+ * Also prevents auto-login - users must manually connect
  */
 export function SolanaWalletGuard({ children }: { children: React.ReactNode }) {
   const { authenticated, logout } = usePrivy()
   const { wallets } = useWallets()
   const hasCheckedRef = useRef(false)
+  const isLoggingOutRef = useRef(false)
 
   useEffect(() => {
+    // Don't interfere if we're in the process of logging out
+    if (isLoggingOutRef.current) {
+      return
+    }
+
     if (!authenticated) {
       hasCheckedRef.current = false
       return
@@ -32,9 +39,14 @@ export function SolanaWalletGuard({ children }: { children: React.ReactNode }) {
     if (evmWallets.length > 0) {
       console.warn(`EVM wallet(s) detected (${evmWallets.length}). Disconnecting...`)
       hasCheckedRef.current = true
+      isLoggingOutRef.current = true
       // Use setTimeout to avoid calling logout during render
-      setTimeout(() => {
-        logout()
+      setTimeout(async () => {
+        try {
+          await logout()
+        } finally {
+          isLoggingOutRef.current = false
+        }
       }, 0)
       return
     }
