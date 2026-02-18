@@ -37,7 +37,6 @@ model Market {
   marketId                  BigInt      @unique
   categoryId                BigInt
   itemsHash                 String      // [u8; 32] as hex string
-  items                     String[]    @default([]) // Actual item names/options
   itemCount                 Int
   startTs                   BigInt      // Unix timestamp
   endTs                     BigInt      // Unix timestamp

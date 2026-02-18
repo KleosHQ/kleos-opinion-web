@@ -12,7 +12,7 @@ const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.
 // Create market
 router.post('/', async (req, res) => {
   try {
-    const { categoryId, startTs, endTs, itemsHash, items, itemCount, tokenMint, adminAuthority }: CreateMarketInput & { adminAuthority: string; items?: string[] } = req.body
+    const { categoryId, startTs, endTs, itemsHash, itemCount, tokenMint, adminAuthority }: CreateMarketInput & { adminAuthority: string } = req.body
 
     // Validate protocol not paused
     const protocol = await prisma.protocol.findFirst()
@@ -58,7 +58,6 @@ router.post('/', async (req, res) => {
           marketId: newMarketId,
           categoryId: BigInt(categoryId),
           itemsHash,
-          items: items || [], // Store actual items array
           itemCount,
           startTs: startTimestamp,
           endTs: endTimestamp,
@@ -195,7 +194,7 @@ router.get('/:marketId', async (req, res) => {
 router.put('/:marketId', async (req, res) => {
   try {
     const { marketId } = req.params
-    const { categoryId, startTs, endTs, itemsHash, items, itemCount, adminAuthority }: EditMarketInput & { adminAuthority: string; items?: string[] } = req.body
+    const { categoryId, startTs, endTs, itemsHash, itemCount, adminAuthority }: EditMarketInput & { adminAuthority: string } = req.body
 
     const market = await prisma.market.findUnique({
       where: { marketId: BigInt(marketId) },
@@ -227,7 +226,6 @@ router.put('/:marketId', async (req, res) => {
     if (startTs !== undefined) updateData.startTs = BigInt(startTs)
     if (endTs !== undefined) updateData.endTs = BigInt(endTs)
     if (itemsHash !== undefined) updateData.itemsHash = itemsHash
-    if (items !== undefined) updateData.items = items // Allow updating items
     if (itemCount !== undefined) {
       if (itemCount <= 1 || itemCount > 255) {
         return res.status(400).json({ error: 'itemCount must be between 2 and 255' })
@@ -418,71 +416,6 @@ router.post('/:marketId/settle', async (req, res) => {
   } catch (error) {
     console.error('Error settling market:', error)
     res.status(500).json({ error: 'Failed to settle market' })
-  }
-})
-
-// Update market items endpoint (allows updating items for existing markets)
-router.put('/:marketId/items', async (req, res) => {
-  try {
-    const { marketId } = req.params
-    const { items, adminAuthority }: { items: string[]; adminAuthority: string } = req.body
-
-    // Validate admin authority
-    const protocol = await prisma.protocol.findFirst()
-    if (!protocol || protocol.adminAuthority !== adminAuthority) {
-      return res.status(403).json({ error: 'Unauthorized: Invalid admin authority' })
-    }
-
-    // Validate items
-    if (!Array.isArray(items) || items.length < 2) {
-      return res.status(400).json({ error: 'Items must be an array with at least 2 items' })
-    }
-
-    // Check if market exists in DB
-    let dbMarket = await prisma.market.findUnique({
-      where: { marketId: BigInt(marketId) },
-    })
-
-    if (!dbMarket) {
-      // Market exists on-chain but not in DB, create it
-      const onchainMarket = await fetchOnchainMarketById(SOLANA_RPC_URL, marketId)
-      if (!onchainMarket) {
-        return res.status(404).json({ error: 'Market not found' })
-      }
-
-      // Create market in DB with items
-      dbMarket = await prisma.market.create({
-        data: {
-          marketId: BigInt(marketId),
-          categoryId: BigInt(0), // Default, can be updated later
-          itemsHash: onchainMarket.itemsHash,
-          items: items,
-          itemCount: items.length,
-          startTs: BigInt(onchainMarket.startTs),
-          endTs: BigInt(onchainMarket.endTs),
-          status: MarketStatus[onchainMarket.status as keyof typeof MarketStatus] || MarketStatus.Draft,
-          tokenMint: onchainMarket.tokenMint,
-          vault: onchainMarket.vault,
-          totalRawStake: BigInt(0),
-          totalEffectiveStake: '0',
-          protocolId: protocol.id,
-        },
-      })
-    } else {
-      // Update existing market with items
-      dbMarket = await prisma.market.update({
-        where: { marketId: BigInt(marketId) },
-        data: {
-          items: items,
-          itemCount: items.length,
-        },
-      })
-    }
-
-    res.json(serializeBigInt(dbMarket))
-  } catch (error) {
-    console.error('Error updating market items:', error)
-    res.status(500).json({ error: 'Failed to update market items' })
   }
 })
 

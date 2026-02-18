@@ -100,7 +100,6 @@ export default function AdminPage() {
         startTs: marketForm.startTs,
         endTs: marketForm.endTs,
         itemsHash: marketForm.itemsHash,
-        items: [], // Empty array for old form (CreateMarketModal handles items properly)
         itemCount: parseInt(marketForm.itemCount),
         tokenMint: marketForm.tokenMint,
         adminAuthority: walletAddress,

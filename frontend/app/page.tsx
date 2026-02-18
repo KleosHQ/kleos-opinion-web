@@ -11,7 +11,6 @@ interface Market {
   id: string
   marketId: string
   itemCount: number
-  items?: string[] // Actual item names/options
   status: 'Draft' | 'Open' | 'Closed' | 'Settled'
   startTs: string
   endTs: string
@@ -27,7 +26,7 @@ export default function Home() {
   const { address: walletAddress, isConnected: isSolanaConnected } = useSolanaWallet()
   const [markets, setMarkets] = useState<Market[]>([])
   const [loading, setLoading] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'Open' | 'Closed' | 'Settled'>('all')
+  const [filter, setFilter] = useState<'all' | 'Open' | 'Closed' | 'Settled'>('Open')
   const fetchingRef = useRef(false)
   const lastFilterRef = useRef<string | null>(null)
   const hasInitializedRef = useRef(false)
@@ -55,6 +54,7 @@ export default function Home() {
       setLoading(true)
       try {
         // Backend now fetches from on-chain, so we just call the API
+        // Default to 'Open' markets, but allow 'all' to show everything
         const params = filter === 'all' ? undefined : { status: filter }
         const response = await marketsApi.getAll(params)
         setMarkets(response.data)
@@ -197,21 +197,9 @@ export default function Home() {
                 </div>
                 
                 <div className="space-y-3 text-sm">
-                  <div>
-                    <span className="text-gray-400">Options:</span>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {market.items && market.items.length > 0 ? (
-                        <>
-                          {market.items.map((item, idx) => (
-                            <span key={idx} className="px-2 py-1 bg-gray-800 text-white rounded text-xs font-medium">
-                              {item}
-                            </span>
-                          ))}
-                        </>
-                      ) : (
-                        <span className="font-semibold text-gray-500">{market.itemCount} options (names not set)</span>
-                      )}
-                    </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Items:</span>
+                    <span className="font-semibold">{market.itemCount}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Positions:</span>

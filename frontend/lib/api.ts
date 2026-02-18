@@ -27,7 +27,7 @@ export const marketsApi = {
   
   getById: (marketId: string) => api.get(`/markets/${marketId}`),
   
-  create: (data: { categoryId: string; startTs: string; endTs: string; itemsHash: string; items?: string[]; itemCount: number; tokenMint: string; adminAuthority: string }) =>
+  create: (data: { categoryId: string; startTs: string; endTs: string; itemsHash: string; itemCount: number; tokenMint: string; adminAuthority: string }) =>
     api.post('/markets', data),
   
   update: (marketId: string, data: { categoryId?: string; startTs?: string; endTs?: string; itemsHash?: string; itemCount?: number; adminAuthority: string }) =>
@@ -40,9 +40,6 @@ export const marketsApi = {
   
   settle: (marketId: string, data: { winningItemIndex: number }) =>
     api.post(`/markets/${marketId}/settle`, data),
-  
-  updateItems: (marketId: string, data: { items: string[]; adminAuthority: string }) =>
-    api.put(`/markets/${marketId}/items`, data),
 }
 
 // Positions API
