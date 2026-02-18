@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { PublicKey, Transaction } from '@solana/web3.js'
+import { useWallets } from '@privy-io/react-auth/solana'
+import bs58 from 'bs58'
 import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
 import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 import { MarketItemsDisplay } from '@/components/MarketItemsDisplay'
@@ -39,6 +42,7 @@ interface Position {
 export default function MarketDetailPage() {
   const { connectSolanaWallet, connecting, ready, authenticated } = useSolanaLogin()
   const { address: walletAddress, isConnected: isSolanaConnected, publicKey } = useSolanaWallet()
+  const { wallets } = useWallets()
   const { client, connection } = useSolanaClient()
   const params = useParams()
   const router = useRouter()
@@ -125,7 +129,7 @@ export default function MarketDetailPage() {
   }, [ready, fetchMarket])
 
   const handlePlacePosition = async () => {
-    if (!authenticated || !walletAddress || !selectedItem || !rawStake || !effectiveStake) {
+    if (!authenticated || !walletAddress || !publicKey || !selectedItem || !rawStake || !effectiveStake || !market) {
       alert('Please fill all fields and connect a Solana wallet')
       return
     }
@@ -151,7 +155,8 @@ export default function MarketDetailPage() {
 
     setPlacingPosition(true)
     try {
-      await positionsApi.create({
+      // Step 1: Validate with backend
+      const validationResponse = await positionsApi.create({
         marketId,
         user: walletAddress,
         selectedItemIndex: selectedItem,
@@ -159,13 +164,70 @@ export default function MarketDetailPage() {
         effectiveStake: effectiveStakeNum.toString(),
       })
 
-      alert('Position placed successfully!')
+      if (!validationResponse.data.success) {
+        throw new Error(validationResponse.data.error || 'Validation failed')
+      }
+
+      // Step 2: Create on-chain transaction
+      const solanaWallet = wallets.find(w => w.address && !w.address.startsWith('0x') && w.address === walletAddress)
+
+      if (!solanaWallet) {
+        throw new Error('Solana wallet not found')
+      }
+
+      // Get market PDA
+      const { getMarketPda } = await import('@/lib/solana/client')
+      const [marketPda] = await getMarketPda(BigInt(marketId))
+      const tokenMintPubkey = new PublicKey(market.tokenMint)
+
+      // Convert SOL amounts to lamports
+      const rawStakeLamports = BigInt(Math.floor(rawStakeNum * 1e9))
+      const effectiveStakeLamports = BigInt(Math.floor(effectiveStakeNum * 1e9))
+
+      // Create transaction
+      const transaction = await client.placePosition(
+        publicKey,
+        marketPda,
+        tokenMintPubkey,
+        selectedItem,
+        rawStakeLamports,
+        effectiveStakeLamports
+      )
+
+      // Get recent blockhash
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+      if (transaction instanceof Transaction) {
+        transaction.recentBlockhash = blockhash
+        transaction.feePayer = publicKey
+      }
+
+      // Sign and send transaction
+      const signResult = await solanaWallet.signAndSendTransaction({
+        transaction: transaction instanceof Transaction ? transaction.serialize({
+          requireAllSignatures: false,
+          verifySignatures: false,
+        }) : transaction,
+        chain: 'solana:devnet',
+      })
+
+      const sigValue = typeof signResult === 'string' ? signResult : signResult.signature
+      const signature = typeof sigValue === 'string' ? sigValue : bs58.encode(sigValue)
+
+      // Wait for confirmation
+      await connection.confirmTransaction({
+        signature,
+        blockhash,
+        lastValidBlockHeight,
+      }, 'confirmed')
+
+      alert('Position placed successfully on-chain!')
       setRawStake('')
       setEffectiveStake('')
       setSelectedItem(null)
       fetchMarket()
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to place position')
+      console.error('Error placing position:', error)
+      alert(error.response?.data?.error || error.message || 'Failed to place position')
     } finally {
       setPlacingPosition(false)
     }

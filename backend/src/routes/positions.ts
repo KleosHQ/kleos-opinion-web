@@ -3,38 +3,45 @@ import { MarketStatus } from '@prisma/client'
 import { PlacePositionInput } from '../types'
 import prisma from '../lib/prisma'
 import { serializeBigInt } from '../utils/serialize'
+import { fetchOnchainMarketById, fetchOnchainProtocol } from '../services/solanaService'
 
 const router = Router()
 
 const MAX_MULTIPLIER = 20n // u128
+const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com'
 
 // Place position
 router.post('/', async (req, res) => {
   try {
     const { marketId, user, selectedItemIndex, rawStake, effectiveStake }: PlacePositionInput & { marketId: string; user: string } = req.body
 
-    const market = await prisma.market.findUnique({
-      where: { marketId: BigInt(marketId) },
-      include: { protocol: true },
-    })
-
-    if (!market) {
+    // Fetch market from on-chain
+    const onchainMarket = await fetchOnchainMarketById(SOLANA_RPC_URL, marketId)
+    
+    if (!onchainMarket) {
       return res.status(404).json({ error: 'Market not found' })
     }
 
+    // Fetch protocol from on-chain
+    const protocol = await fetchOnchainProtocol(SOLANA_RPC_URL)
+    
+    if (!protocol) {
+      return res.status(404).json({ error: 'Protocol not initialized' })
+    }
+
     // Validate protocol not paused
-    if (market.protocol.paused) {
+    if (protocol.paused) {
       return res.status(400).json({ error: 'Protocol is paused' })
     }
 
     // Validate market.status == Open
-    if (market.status !== MarketStatus.Open) {
+    if (onchainMarket.status !== 'Open') {
       return res.status(400).json({ error: 'Market must be in Open status' })
     }
 
     // Validate current_time < end_ts
     const currentTime = BigInt(Math.floor(Date.now() / 1000))
-    if (currentTime >= market.endTs) {
+    if (currentTime >= BigInt(onchainMarket.endTs)) {
       return res.status(400).json({ error: 'Market has ended' })
     }
 
@@ -45,7 +52,7 @@ router.post('/', async (req, res) => {
     }
 
     // Validate selected_item_index < item_count
-    if (selectedItemIndex < 0 || selectedItemIndex >= market.itemCount) {
+    if (selectedItemIndex < 0 || selectedItemIndex >= onchainMarket.itemCount) {
       return res.status(400).json({ error: 'Invalid selectedItemIndex' })
     }
 
@@ -63,48 +70,41 @@ router.post('/', async (req, res) => {
       })
     }
 
-    // Check for duplicate position
-    const existingPosition = await prisma.position.findUnique({
-      where: {
-        marketId_user: {
-          marketId: market.id,
-          user,
-        },
-      },
+    // Check for duplicate position in DB (optional - on-chain will also check)
+    // Try to find market in DB first
+    const dbMarket = await prisma.market.findUnique({
+      where: { marketId: BigInt(marketId) },
+      select: { id: true },
     })
 
-    if (existingPosition) {
-      return res.status(400).json({ error: 'Position already exists for this user' })
+    if (dbMarket) {
+      const existingPosition = await prisma.position.findUnique({
+        where: {
+          marketId_user: {
+            marketId: dbMarket.id,
+            user,
+          },
+        },
+      })
+
+      if (existingPosition) {
+        return res.status(400).json({ error: 'Position already exists for this user' })
+      }
     }
 
-    // Create position and update market
-    const result = await prisma.$transaction(async (tx) => {
-      // Create position
-      const position = await tx.position.create({
-        data: {
-          marketId: market.id,
-          user,
-          selectedItemIndex,
-          rawStake: rawStakeBigInt,
-          effectiveStake: effectiveStake,
-          claimed: false,
-        },
-      })
-
-      // Update market totals
-      await tx.market.update({
-        where: { id: market.id },
-        data: {
-          totalRawStake: market.totalRawStake + rawStakeBigInt,
-          totalEffectiveStake: (BigInt(market.totalEffectiveStake) + effectiveStakeBigInt).toString(),
-          positionsCount: market.positionsCount + 1,
-        },
-      })
-
-      return position
+    // Validation passed - return success
+    // Frontend will create and sign the on-chain transaction
+    // After successful on-chain transaction, optionally sync to DB
+    res.json({
+      success: true,
+      message: 'Validation passed. Please sign the transaction with your wallet.',
+      market: {
+        marketId: onchainMarket.marketId,
+        status: onchainMarket.status,
+        tokenMint: onchainMarket.tokenMint,
+        itemCount: onchainMarket.itemCount,
+      },
     })
-
-    res.json(result)
   } catch (error) {
     console.error('Error placing position:', error)
     res.status(500).json({ error: 'Failed to place position' })
