@@ -11,6 +11,7 @@ interface Market {
   id: string
   marketId: string
   itemCount: number
+  items?: string[] // Actual item names/options
   status: 'Draft' | 'Open' | 'Closed' | 'Settled'
   startTs: string
   endTs: string
@@ -196,9 +197,21 @@ export default function Home() {
                 </div>
                 
                 <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Items:</span>
-                    <span className="font-semibold">{market.itemCount}</span>
+                  <div>
+                    <span className="text-gray-400">Options:</span>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {market.items && market.items.length > 0 ? (
+                        <>
+                          {market.items.map((item, idx) => (
+                            <span key={idx} className="px-2 py-1 bg-gray-800 text-white rounded text-xs font-medium">
+                              {item}
+                            </span>
+                          ))}
+                        </>
+                      ) : (
+                        <span className="font-semibold text-gray-500">{market.itemCount} options (names not set)</span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Positions:</span>

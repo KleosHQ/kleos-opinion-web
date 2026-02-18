@@ -139,6 +139,7 @@ export function CreateMarketModal({ isOpen, onClose, onSuccess, protocolMarketCo
         startTs: formData.startTs,
         endTs: formData.endTs,
         itemsHash,
+        items: formData.items, // Send actual items array
         itemCount: formData.items.length,
         tokenMint: formData.tokenMint,
         adminAuthority: solanaWallet.address,

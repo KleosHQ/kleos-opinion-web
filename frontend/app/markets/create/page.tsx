@@ -189,6 +189,7 @@ export default function CreateMarketPage() {
         startTs: formData.startTs,
         endTs: formData.endTs,
         itemsHash,
+        items: formData.items, // Send actual items array
         itemCount: formData.items.length,
         tokenMint: formData.tokenMint,
         adminAuthority: walletAddress,

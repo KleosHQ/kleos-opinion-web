@@ -9,6 +9,7 @@ import bs58 from 'bs58'
 import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
 import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 import { MarketItemsDisplay } from '@/components/MarketItemsDisplay'
+import { EditMarketItemsModal } from '@/components/EditMarketItemsModal'
 import { marketsApi, positionsApi } from '@/lib/api'
 import { useSolanaClient } from '@/lib/solana/useSolanaClient'
 
@@ -16,6 +17,7 @@ interface Market {
   marketId: string
   itemsHash: string
   itemCount: number
+  items?: string[] // Actual item names/options
   status: 'Draft' | 'Open' | 'Closed' | 'Settled'
   startTs: string
   endTs: string
@@ -60,6 +62,7 @@ export default function MarketDetailPage() {
   const [winningItem, setWinningItem] = useState<number | null>(null)
   const [closing, setClosing] = useState(false)
   const [opening, setOpening] = useState(false)
+  const [showEditItemsModal, setShowEditItemsModal] = useState(false)
 
   useEffect(() => {
     // Only fetch if ready and not already fetching
@@ -322,17 +325,29 @@ export default function MarketDetailPage() {
             </span>
           </div>
 
-          {/* Market Items Display */}
-          <div className="mb-6">
-            <MarketItemsDisplay
-              itemsHash={market.itemsHash}
-              itemCount={market.itemCount}
-              selectedItemIndex={selectedItem}
-              onSelectItem={setSelectedItem}
-              disabled={!canPlacePosition}
-              winningItemIndex={market.winningItemIndex}
-            />
-          </div>
+              {/* Market Items Display */}
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-lg font-semibold">Market Options</h3>
+                  {isAdmin && (
+                    <button
+                      onClick={() => setShowEditItemsModal(true)}
+                      className="px-4 py-2 border border-white text-white rounded-lg hover:bg-white hover:text-black transition-colors text-sm"
+                    >
+                      Edit Items
+                    </button>
+                  )}
+                </div>
+                <MarketItemsDisplay
+                  itemsHash={market.itemsHash}
+                  itemCount={market.itemCount}
+                  items={market.items}
+                  selectedItemIndex={selectedItem}
+                  onSelectItem={setSelectedItem}
+                  disabled={!canPlacePosition}
+                  winningItemIndex={market.winningItemIndex}
+                />
+              </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-6">
             <div>
@@ -599,6 +614,20 @@ export default function MarketDetailPage() {
             </div>
           )}
         </div>
+
+        {isAdmin && market && (
+          <EditMarketItemsModal
+            isOpen={showEditItemsModal}
+            onClose={() => setShowEditItemsModal(false)}
+            onSuccess={() => {
+              setShowEditItemsModal(false)
+              fetchMarket()
+            }}
+            marketId={market.marketId}
+            currentItems={market.items}
+            adminAuthority={walletAddress || ''}
+          />
+        )}
       </div>
     </main>
   )
