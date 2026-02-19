@@ -86,10 +86,22 @@ export default function MarketDetailPage() {
       setLoading(true)
       try {
         // Backend now fetches from on-chain
+        console.log('Fetching market with ID:', marketId)
         const response = await marketsApi.getById(marketId)
-        setMarket(response.data)
-      } catch (error) {
+        console.log('Market response:', response.data)
+        if (response.data) {
+          setMarket(response.data)
+        } else {
+          console.error('Market data is null or undefined')
+          setMarket(null)
+        }
+      } catch (error: any) {
         console.error('Error fetching market:', error)
+        console.error('Error details:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+        })
         setMarket(null)
       } finally {
         setLoading(false)
@@ -266,7 +278,21 @@ export default function MarketDetailPage() {
   if (!market) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-white text-xl">Market not found</div>
+        <div className="text-center">
+          <div className="text-white text-xl mb-4">Market not found</div>
+          <div className="text-gray-400 text-sm mb-4">
+            Market ID: {marketId}
+          </div>
+          <div className="text-gray-400 text-sm mb-6">
+            The market may not exist on-chain or there was an error fetching it.
+          </div>
+          <Link
+            href="/"
+            className="px-6 py-3 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors font-semibold inline-block"
+          >
+            Back to Markets
+          </Link>
+        </div>
       </div>
     )
   }
@@ -336,7 +362,7 @@ export default function MarketDetailPage() {
               itemCount={market.itemCount}
               selectedItemIndex={selectedItem}
               onSelectItem={setSelectedItem}
-              disabled={!canPlacePosition}
+              disabled={market.status !== 'Open' || !!userPosition}
               winningItemIndex={market.winningItemIndex}
             />
           </div>
@@ -411,24 +437,40 @@ export default function MarketDetailPage() {
             </div>
           )}
 
-          {canPlacePosition && (
+          {market.status === 'Open' && !userPosition && (
             <div className="bg-gray-900 border border-white rounded-lg p-6 mb-6">
               <h3 className="text-2xl font-semibold mb-6">Place Position</h3>
-              {!authenticated ? (
-                <button
-                  onClick={connectSolanaWallet}
-                  disabled={connecting || !ready}
-                  className="w-full px-6 py-3 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  {connecting ? 'Connecting...' : 'Connect Solana Wallet to Place Position'}
-                </button>
+              {!authenticated || !isSolanaConnected ? (
+                <div className="space-y-4">
+                  <p className="text-gray-300 mb-4">
+                    Connect your Solana wallet to place a bet on this market.
+                  </p>
+                  <button
+                    onClick={connectSolanaWallet}
+                    disabled={connecting || !ready}
+                    className="w-full px-6 py-3 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {connecting ? 'Connecting...' : 'Connect Solana Wallet to Place Position'}
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium mb-3 text-gray-300">
+                      Select Option
+                    </label>
+                    <p className="text-xs text-gray-400 mb-3">
+                      {selectedItem !== null 
+                        ? `Selected: Item #${selectedItem}` 
+                        : 'Click on an option above to select your bet'}
+                    </p>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium mb-3 text-gray-300">Raw Stake (SOL)</label>
                     <input
                       type="number"
                       step="0.000000001"
+                      min="0"
                       value={rawStake}
                       onChange={(e) => setRawStake(e.target.value)}
                       className="w-full px-4 py-3 bg-black border border-white rounded-lg text-white"
@@ -461,8 +503,21 @@ export default function MarketDetailPage() {
                   >
                     {placingPosition ? 'Calculating & Placing Position...' : 'Place Position'}
                   </button>
+                  {selectedItem === null && (
+                    <p className="text-xs text-yellow-400 text-center">
+                      Please select an option above before placing your bet
+                    </p>
+                  )}
                 </div>
               )}
+            </div>
+          )}
+          
+          {market.status !== 'Open' && !userPosition && (
+            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 mb-6">
+              <p className="text-gray-400 text-center">
+                This market is {market.status.toLowerCase()}. Betting is only available when the market is Open.
+              </p>
             </div>
           )}
 

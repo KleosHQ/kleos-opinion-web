@@ -208,16 +208,32 @@ export async function fetchAllOnchainMarkets(rpcUrl: string) {
 }
 
 export async function fetchOnchainMarketById(rpcUrl: string, marketId: string | number | bigint) {
-  const connection = new Connection(rpcUrl, 'confirmed')
-  const id = BigInt(marketId)
-  const [marketPda] = getMarketPda(id)
-  const accountInfo = await connection.getAccountInfo(marketPda)
-  
-  if (!accountInfo?.data) {
-    return null
-  }
+  try {
+    const connection = new Connection(rpcUrl, 'confirmed')
+    const id = BigInt(marketId)
+    const [marketPda] = getMarketPda(id)
+    
+    console.log(`Fetching market ${marketId} from PDA: ${marketPda.toBase58()}`)
+    
+    const accountInfo = await connection.getAccountInfo(marketPda)
+    
+    if (!accountInfo?.data) {
+      console.warn(`Market account not found for marketId: ${marketId}, PDA: ${marketPda.toBase58()}`)
+      return null
+    }
 
-  return decodeMarketAccount(accountInfo.data, marketPda.toBase58())
+    const decoded = decodeMarketAccount(accountInfo.data, marketPda.toBase58())
+    console.log(`Successfully decoded market ${marketId}:`, {
+      marketId: decoded.marketId,
+      status: decoded.status,
+      itemCount: decoded.itemCount,
+    })
+    
+    return decoded
+  } catch (error: any) {
+    console.error(`Error fetching market ${marketId} from on-chain:`, error.message)
+    throw error
+  }
 }
 
 export async function fetchOnchainProtocolForMarket(rpcUrl: string) {

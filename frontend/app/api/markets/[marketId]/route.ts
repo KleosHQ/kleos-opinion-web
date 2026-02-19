@@ -14,13 +14,20 @@ export async function GET(
 ) {
   try {
     const { marketId } = await params
+    console.log(`[API] Fetching market ${marketId} from on-chain`)
 
     // Fetch market from on-chain
     const onchainMarket = await fetchOnchainMarketById(SOLANA_RPC_URL, marketId)
     
     if (!onchainMarket) {
-      return NextResponse.json({ error: 'Market not found' }, { status: 404 })
+      console.warn(`[API] Market ${marketId} not found on-chain`)
+      return NextResponse.json({ error: 'Market not found on-chain' }, { status: 404 })
     }
+    
+    console.log(`[API] Successfully fetched market ${marketId}:`, {
+      status: onchainMarket.status,
+      itemCount: onchainMarket.itemCount,
+    })
 
     // Fetch protocol for admin info
     const protocol = await fetchOnchainProtocolForMarket(SOLANA_RPC_URL)
