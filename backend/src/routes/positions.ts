@@ -4,11 +4,54 @@ import { PlacePositionInput } from '../types'
 import prisma from '../lib/prisma'
 import { serializeBigInt } from '../utils/serialize'
 import { fetchOnchainMarketById, fetchOnchainProtocol } from '../services/solanaService'
+import { calculateEffectiveStake } from '../services/effectiveStakeService'
 
 const router = Router()
 
-const MAX_MULTIPLIER = 20n // u128
+const MAX_MULTIPLIER = 3 // Maximum multiplier for effective stake
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com'
+
+// Calculate effective stake endpoint (called before placing position)
+router.post('/calculate-effective-stake', async (req, res) => {
+  try {
+    const { wallet, rawStake, marketId }: { wallet: string; rawStake: number; marketId: string } = req.body
+
+    if (!wallet || typeof wallet !== 'string') {
+      return res.status(400).json({ error: 'Valid wallet address is required' })
+    }
+
+    if (!rawStake || typeof rawStake !== 'number' || rawStake <= 0) {
+      return res.status(400).json({ error: 'Valid rawStake (number > 0) is required' })
+    }
+
+    // Fetch market from on-chain to get timing info
+    const onchainMarket = await fetchOnchainMarketById(SOLANA_RPC_URL, marketId)
+    
+    if (!onchainMarket) {
+      return res.status(404).json({ error: 'Market not found' })
+    }
+
+    // Calculate effective stake
+    const result = await calculateEffectiveStake({
+      wallet,
+      rawStake,
+      marketStartTs: Number(onchainMarket.startTs),
+      marketEndTs: Number(onchainMarket.endTs),
+    })
+
+    res.json({
+      effectiveStake: result.effectiveStake,
+      fairscore: result.fairscore,
+      reputationMultiplier: result.reputationMultiplier,
+      timingMultiplier: result.timingMultiplier,
+      rawStake,
+      maxAllowed: rawStake * MAX_MULTIPLIER,
+    })
+  } catch (error: any) {
+    console.error('Error calculating effective stake:', error)
+    res.status(500).json({ error: error.message || 'Failed to calculate effective stake' })
+  }
+})
 
 // Place position
 router.post('/', async (req, res) => {
@@ -56,14 +99,29 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Invalid selectedItemIndex' })
     }
 
-    // Validate effective_stake > 0
+    // Calculate effective stake to validate and get metadata
+    const effectiveStakeResult = await calculateEffectiveStake({
+      wallet: user,
+      rawStake: Number(rawStake),
+      marketStartTs: Number(onchainMarket.startTs),
+      marketEndTs: Number(onchainMarket.endTs),
+    })
+
+    // Validate effective_stake matches calculated value (with small tolerance for rounding)
     const effectiveStakeBigInt = BigInt(effectiveStake)
-    if (effectiveStakeBigInt <= 0n) {
-      return res.status(400).json({ error: 'effectiveStake must be greater than 0' })
+    const calculatedEffectiveStake = BigInt(effectiveStakeResult.effectiveStake)
+    const tolerance = 1n // Allow 1 unit difference for rounding
+
+    if (effectiveStakeBigInt < calculatedEffectiveStake - tolerance || 
+        effectiveStakeBigInt > calculatedEffectiveStake + tolerance) {
+      return res.status(400).json({ 
+        error: `effectiveStake mismatch. Expected: ${calculatedEffectiveStake}, Got: ${effectiveStake}`,
+        calculated: calculatedEffectiveStake.toString(),
+      })
     }
 
     // Validate effective_stake ≤ raw_stake × MAX_MULTIPLIER
-    const maxEffectiveStake = rawStakeBigInt * MAX_MULTIPLIER
+    const maxEffectiveStake = rawStakeBigInt * BigInt(MAX_MULTIPLIER)
     if (effectiveStakeBigInt > maxEffectiveStake) {
       return res.status(400).json({ 
         error: `effectiveStake exceeds maximum (rawStake * ${MAX_MULTIPLIER})` 
@@ -92,7 +150,7 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Validation passed - return success
+    // Validation passed - return success with metadata
     // Frontend will create and sign the on-chain transaction
     // After successful on-chain transaction, optionally sync to DB
     res.json({
@@ -104,10 +162,15 @@ router.post('/', async (req, res) => {
         tokenMint: onchainMarket.tokenMint,
         itemCount: onchainMarket.itemCount,
       },
+      effectiveStakeMetadata: {
+        fairscore: effectiveStakeResult.fairscore,
+        reputationMultiplier: effectiveStakeResult.reputationMultiplier,
+        timingMultiplier: effectiveStakeResult.timingMultiplier,
+      },
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error placing position:', error)
-    res.status(500).json({ error: 'Failed to place position' })
+    res.status(500).json({ error: error.message || 'Failed to place position' })
   }
 })
 

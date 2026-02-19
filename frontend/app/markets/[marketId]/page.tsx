@@ -53,7 +53,6 @@ export default function MarketDetailPage() {
   const [placingPosition, setPlacingPosition] = useState(false)
   const [selectedItem, setSelectedItem] = useState<number | null>(null)
   const [rawStake, setRawStake] = useState('')
-  const [effectiveStake, setEffectiveStake] = useState('')
   const fetchingRef = useRef(false)
   const lastMarketIdRef = useRef<string | null>(null)
   const [settling, setSettling] = useState(false)
@@ -129,39 +128,48 @@ export default function MarketDetailPage() {
   }, [ready, fetchMarket])
 
   const handlePlacePosition = async () => {
-    if (!authenticated || !walletAddress || !publicKey || !selectedItem || !rawStake || !effectiveStake || !market) {
+    if (!authenticated || !walletAddress || !publicKey || !selectedItem || !rawStake || !market) {
       alert('Please fill all fields and connect a Solana wallet')
       return
     }
 
     // Validate stake amounts
     const rawStakeNum = Number(rawStake)
-    const effectiveStakeNum = Number(effectiveStake)
     
     if (rawStakeNum <= 0) {
       alert('Raw stake must be greater than 0')
       return
     }
-    
-    if (effectiveStakeNum <= 0) {
-      alert('Effective stake must be greater than 0')
-      return
-    }
-    
-    if (effectiveStakeNum > rawStakeNum * 20) {
-      alert('Effective stake cannot exceed raw stake × 20')
-      return
-    }
 
     setPlacingPosition(true)
     try {
-      // Step 1: Validate with backend
+      // Step 1: Calculate effective stake from backend
+      const effectiveStakeResponse = await positionsApi.calculateEffectiveStake({
+        wallet: walletAddress,
+        rawStake: rawStakeNum,
+        marketId,
+      })
+
+      const calculatedEffectiveStake = effectiveStakeResponse.data.effectiveStake
+      const fairscore = effectiveStakeResponse.data.fairscore
+      const reputationMultiplier = effectiveStakeResponse.data.reputationMultiplier
+      const timingMultiplier = effectiveStakeResponse.data.timingMultiplier
+
+      console.log('Effective Stake Calculation:', {
+        rawStake: rawStakeNum,
+        effectiveStake: calculatedEffectiveStake,
+        fairscore,
+        reputationMultiplier,
+        timingMultiplier,
+      })
+
+      // Step 2: Validate with backend (includes effective stake validation)
       const validationResponse = await positionsApi.create({
         marketId,
         user: walletAddress,
         selectedItemIndex: selectedItem,
         rawStake: rawStakeNum.toString(),
-        effectiveStake: effectiveStakeNum.toString(),
+        effectiveStake: calculatedEffectiveStake.toString(),
       })
 
       if (!validationResponse.data.success) {
@@ -182,7 +190,7 @@ export default function MarketDetailPage() {
 
       // Convert SOL amounts to lamports
       const rawStakeLamports = BigInt(Math.floor(rawStakeNum * 1e9))
-      const effectiveStakeLamports = BigInt(Math.floor(effectiveStakeNum * 1e9))
+      const effectiveStakeLamports = BigInt(Math.floor(calculatedEffectiveStake * 1e9))
 
       // Create transaction
       const transaction = await client.placePosition(
@@ -220,9 +228,8 @@ export default function MarketDetailPage() {
         lastValidBlockHeight,
       }, 'confirmed')
 
-      alert('Position placed successfully on-chain!')
+      alert(`Position placed successfully on-chain!\n\nEffective Stake: ${calculatedEffectiveStake} SOL\nFairScore: ${fairscore}\nReputation Multiplier: ${reputationMultiplier.toFixed(2)}x\nTiming Multiplier: ${timingMultiplier.toFixed(2)}x`)
       setRawStake('')
-      setEffectiveStake('')
       setSelectedItem(null)
       fetchMarket()
     } catch (error: any) {
@@ -423,60 +430,36 @@ export default function MarketDetailPage() {
                       type="number"
                       step="0.000000001"
                       value={rawStake}
-                      onChange={(e) => {
-                        const solValue = e.target.value
-                        setRawStake(solValue)
-                        // Auto-calculate effective stake if multiplier is set
-                        if (effectiveStake && rawStake) {
-                          const multiplier = Number(effectiveStake) / (Number(rawStake) * 1e9)
-                          if (multiplier >= 1 && multiplier <= 20) {
-                            const newEffective = (Number(solValue) * 1e9 * multiplier).toString()
-                            setEffectiveStake(newEffective)
-                          }
-                        }
-                      }}
+                      onChange={(e) => setRawStake(e.target.value)}
                       className="w-full px-4 py-3 bg-black border border-white rounded-lg text-white"
                       placeholder="1.0"
                     />
                     <p className="text-xs text-gray-400 mt-1">
-                      Amount in SOL (will be converted to lamports)
+                      Amount in SOL. Effective stake will be calculated automatically based on your FairScore and timing.
                     </p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-3 text-gray-300">Effective Stake Multiplier (1-20x)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="1"
-                      max="20"
-                      value={rawStake && effectiveStake ? (Number(effectiveStake) / (Number(rawStake) * 1e9)).toFixed(1) : ''}
-                      onChange={(e) => {
-                        const multiplier = Number(e.target.value)
-                        if (rawStake && multiplier >= 1 && multiplier <= 20) {
-                          const effective = (Number(rawStake) * 1e9 * multiplier).toString()
-                          setEffectiveStake(effective)
-                        } else if (!rawStake) {
-                          alert('Please enter raw stake first')
-                        }
-                      }}
-                      className="w-full px-4 py-3 bg-black border border-white rounded-lg text-white"
-                      placeholder="1.5"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">
-                      Multiplier (1-20x). Effective stake = Raw stake × Multiplier
-                    </p>
-                    {rawStake && effectiveStake && (
-                      <p className="text-xs text-green-400 mt-1">
-                        Effective: {Number(effectiveStake) / 1e9} SOL
+                  {rawStake && Number(rawStake) > 0 && (
+                    <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+                      <p className="text-sm font-semibold mb-2 text-gray-300">Effective Stake Preview</p>
+                      <p className="text-xs text-gray-400 mb-1">
+                        Click "Place Position" to calculate your effective stake based on:
                       </p>
-                    )}
-                  </div>
+                      <ul className="text-xs text-gray-400 list-disc list-inside mb-2">
+                        <li>Your FairScore (wallet reputation)</li>
+                        <li>Timing (earlier = higher multiplier)</li>
+                        <li>Maximum multiplier: 3x</li>
+                      </ul>
+                      <p className="text-xs text-yellow-400">
+                        Effective stake will be calculated when you place the position.
+                      </p>
+                    </div>
+                  )}
                   <button
                     onClick={handlePlacePosition}
-                    disabled={placingPosition || selectedItem === null || !rawStake || !effectiveStake}
+                    disabled={placingPosition || selectedItem === null || !rawStake || Number(rawStake) <= 0}
                     className="w-full px-6 py-3 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
-                    {placingPosition ? 'Placing Position...' : 'Place Position'}
+                    {placingPosition ? 'Calculating & Placing Position...' : 'Place Position'}
                   </button>
                 </div>
               )}
