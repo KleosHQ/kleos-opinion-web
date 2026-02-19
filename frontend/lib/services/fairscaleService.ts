@@ -55,10 +55,20 @@ class FairScaleService {
 
   /**
    * Get complete wallet score with badges, tiers, and features
+   * Returns a default score object if API key is not configured or if there's an error
    */
   async getCompleteScore(walletAddress: string): Promise<FairScaleScore> {
     if (!FAIRSCALE_API_KEY) {
-      throw new Error('FairScale API key not configured')
+      console.warn('FairScale API key not configured. Returning default score.')
+      return {
+        wallet: walletAddress,
+        fairscore_base: 0,
+        social_score: 0,
+        fairscore: 0,
+        tier: 'bronze',
+        badges: [],
+        timestamp: new Date().toISOString(),
+      }
     }
 
     try {
@@ -67,66 +77,89 @@ class FairScaleService {
       })
       return response.data
     } catch (error: any) {
+      console.error(`Error fetching complete score for ${walletAddress}:`, error.message)
       if (error.response?.status === 401) {
-        throw new Error('Invalid FairScale API key')
+        console.error('Invalid FairScale API key')
       }
       if (error.response?.status === 429) {
-        throw new Error('FairScale rate limit exceeded')
+        console.error('FairScale rate limit exceeded')
       }
-      throw new Error(`Failed to fetch FairScale score: ${error.message}`)
+      // Return default score instead of throwing
+      return {
+        wallet: walletAddress,
+        fairscore_base: 0,
+        social_score: 0,
+        fairscore: 0,
+        tier: 'bronze',
+        badges: [],
+        timestamp: new Date().toISOString(),
+      }
     }
   }
 
   /**
    * Get just the combined FairScore value (faster, less data)
+   * Returns 0 if API key is not configured or if there's an error
    */
   async getFairScore(walletAddress: string): Promise<number> {
     if (!FAIRSCALE_API_KEY) {
-      throw new Error('FairScale API key not configured')
+      console.warn('FairScale API key not configured. Returning default score of 0.')
+      return 0
     }
 
     try {
       const response = await this.client.get<FairScoreResponse>('/fairScore', {
         params: { wallet: walletAddress },
       })
-      return response.data.fair_score
+      return response.data.fair_score ?? 0
     } catch (error: any) {
+      console.error(`Error fetching FairScore for ${walletAddress}:`, error.message)
       if (error.response?.status === 401) {
-        throw new Error('Invalid FairScale API key')
+        console.error('Invalid FairScale API key')
+        return 0
       }
       if (error.response?.status === 429) {
-        throw new Error('FairScale rate limit exceeded')
+        console.error('FairScale rate limit exceeded')
+        return 0
       }
-      throw new Error(`Failed to fetch FairScore: ${error.message}`)
+      // Return 0 on any error instead of throwing
+      return 0
     }
   }
 
   /**
    * Get wallet-based score only (no social factors)
+   * Returns 0 if API key is not configured or if there's an error
    */
   async getWalletScore(walletAddress: string): Promise<number> {
     if (!FAIRSCALE_API_KEY) {
-      throw new Error('FairScale API key not configured')
+      console.warn('FairScale API key not configured. Returning default score of 0.')
+      return 0
     }
 
     try {
       const response = await this.client.get<WalletScoreResponse>('/walletScore', {
         params: { wallet: walletAddress },
       })
-      return response.data.wallet_score
+      return response.data.wallet_score ?? 0
     } catch (error: any) {
+      console.error(`Error fetching wallet score for ${walletAddress}:`, error.message)
       if (error.response?.status === 401) {
-        throw new Error('Invalid FairScale API key')
+        console.error('Invalid FairScale API key')
+        return 0
       }
       if (error.response?.status === 429) {
-        throw new Error('FairScale rate limit exceeded')
+        console.error('FairScale rate limit exceeded')
+        return 0
       }
-      throw new Error(`Failed to fetch wallet score: ${error.message}`)
+      // Return 0 on any error instead of throwing
+      return 0
     }
   }
 
   /**
    * Check if a wallet meets minimum score requirements
+   * Returns false if API key is not configured or if there's an error
    */
   async meetsMinimumScore(
     walletAddress: string,
@@ -142,12 +175,15 @@ class FairScaleService {
         return { meets: score >= minimumScore, score }
       }
     } catch (error: any) {
-      throw new Error(`Failed to check minimum score: ${error.message}`)
+      console.error(`Error checking minimum score for ${walletAddress}:`, error.message)
+      // Return false on error
+      return { meets: false, score: 0 }
     }
   }
 
   /**
    * Check if a wallet meets minimum tier requirement
+   * Returns false if API key is not configured or if there's an error
    */
   async meetsMinimumTier(
     walletAddress: string,
@@ -165,7 +201,13 @@ class FairScaleService {
         score: completeScore.fairscore,
       }
     } catch (error: any) {
-      throw new Error(`Failed to check tier: ${error.message}`)
+      console.error(`Error checking tier for ${walletAddress}:`, error.message)
+      // Return false on error (defaults to bronze tier)
+      return {
+        meets: false,
+        tier: 'bronze',
+        score: 0,
+      }
     }
   }
 }

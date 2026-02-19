@@ -1,19 +1,14 @@
-import { Router } from 'express'
+import { NextRequest, NextResponse } from 'next/server'
 import { keccak256 } from 'js-sha3'
 
-const router = Router()
-
-/**
- * POST /market-utils/calculate-items-hash
- * Calculate keccak256 hash of market items
- * Body: { items: string[] }
- */
-router.post('/calculate-items-hash', async (req, res) => {
+// POST /api/market-utils/calculate-items-hash
+export async function POST(request: NextRequest) {
   try {
-    const { items } = req.body
+    const body = await request.json()
+    const { items } = body
 
     if (!Array.isArray(items) || items.length < 2) {
-      return res.status(400).json({ error: 'Items must be an array with at least 2 items' })
+      return NextResponse.json({ error: 'Items must be an array with at least 2 items' }, { status: 400 })
     }
 
     // Sort items for consistent hashing
@@ -29,11 +24,9 @@ router.post('/calculate-items-hash', async (req, res) => {
     const finalHash = keccak256(concatenated)
     
     // Return as hex string (64 chars = 32 bytes)
-    res.json({ itemsHash: finalHash })
+    return NextResponse.json({ itemsHash: finalHash })
   } catch (error: any) {
     console.error('Error calculating items hash:', error)
-    res.status(500).json({ error: error.message || 'Failed to calculate items hash' })
+    return NextResponse.json({ error: error.message || 'Failed to calculate items hash' }, { status: 500 })
   }
-})
-
-export { router as marketUtilsRouter }
+}

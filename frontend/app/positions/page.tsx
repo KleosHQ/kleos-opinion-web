@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
 import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
+import { positionsApi } from '@/lib/api'
 
 interface Position {
   id: string
@@ -50,9 +51,8 @@ export default function PositionsPage() {
     const fetchPositions = async () => {
       setLoading(true)
       try {
-        const response = await fetch(`http://localhost:3001/api/positions/user/${walletAddress}`)
-        const data = await response.json()
-        setPositions(data)
+        const response = await positionsApi.getByUser(walletAddress)
+        setPositions(response.data)
       } catch (error) {
         console.error('Error fetching positions:', error)
       } finally {
@@ -71,9 +71,8 @@ export default function PositionsPage() {
       if (!walletAddress) return
       setLoading(true)
       try {
-        const response = await fetch(`http://localhost:3001/api/positions/user/${walletAddress}`)
-        const data = await response.json()
-        setPositions(data)
+        const response = await positionsApi.getByUser(walletAddress)
+        setPositions(response.data)
       } catch (error) {
         console.error('Error fetching positions:', error)
       } finally {
@@ -82,22 +81,13 @@ export default function PositionsPage() {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/positions/${positionId}/claim`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: walletAddress }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        alert(`Payout calculated: ${data.payout} (On-chain transaction required)`)
-        fetchPositions()
-      } else {
-        const error = await response.json()
-        alert(error.error || 'Failed to claim payout')
-      }
-    } catch (error) {
-      alert('Failed to claim payout')
+      const response = await positionsApi.claim(positionId, { user: walletAddress })
+      const data = response.data
+      alert(`Payout calculated: ${data.payout} (On-chain transaction required)`)
+      fetchPositions()
+    } catch (error: any) {
+      console.error('Error claiming payout:', error)
+      alert(error.response?.data?.error || 'Failed to claim payout')
     }
   }
 

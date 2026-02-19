@@ -25,7 +25,9 @@ export default function RootLayout({
               <p className="text-sm text-gray-400 mb-2">Create <code className="text-white">frontend/.env.local</code> with:</p>
               <pre className="bg-black p-4 rounded text-green-400 text-sm overflow-x-auto">
 {`NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id_here
-NEXT_PUBLIC_API_URL=http://localhost:3001/api`}
+DATABASE_URL="postgresql://user:password@localhost:5432/kanzz?schema=public"
+SOLANA_RPC_URL="https://api.devnet.solana.com"
+FAIRSCALE_API_KEY=your_fairscale_api_key_here`}
               </pre>
               <p className="text-sm text-gray-400 mt-4">
                 Get your Privy App ID from{' '}

@@ -26,7 +26,6 @@ yarn-error.log*
 # Local env files
 .env*.local
 .env
-backend/.env
 
 # Vercel
 .vercel
@@ -36,30 +35,18 @@ backend/.env
 next-env.d.ts
 
 # Prisma
-backend/prisma/migrations/
+frontend/prisma/migrations/
 
 # Frontend
 frontend/.env.local
-
-# Backend
-backend/.env
 
 node_modules/
 
 node_modules/**/*
 
-backend/dist/
-backend/node_modules/**/*
-
 frontend/node_modules/**/*
 
 frontend/dist/**/*
-
-backend/dist/**/*
-
-backend/node_modules/**/*
-
-backend/dist/**/*
 
 frontend/.next/**/*
 
