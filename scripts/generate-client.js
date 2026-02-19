@@ -10,7 +10,7 @@ const fs = require('fs')
 const path = require('path')
 
 const IDL_PATH = path.join(__dirname, '../kleos_protocol.json')
-const OUTPUT_PATH = path.join(__dirname, '../frontend/lib/solana/generated')
+const OUTPUT_PATH = path.join(__dirname, '../lib/solana/generated')
 
 console.log('🚀 Generating Codama client...')
 console.log(`IDL: ${IDL_PATH}`)

@@ -1,9 +1,9 @@
 {
-  "idl": "./kleos_protocol.json",
+  "idl": "./idl/kleos_protocol.json",
   "scripts": {
     "js": {
       "from": "@codama/renderers-js",
-      "args": ["frontend/lib/solana/generated"],
+      "args": ["lib/solana/generated"],
       "options": {
         "deleteFolderBeforeRendering": true,
         "formatCode": true,

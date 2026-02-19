@@ -1,12 +1,12 @@
-# Kanzz - Prediction Market Protocol
+# Kleos Client
 
-A full-stack application for managing prediction markets with wallet authentication and position tracking.
+A Next.js application for prediction markets with wallet authentication and position tracking.
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14, React, Privy (wallet authentication)
-- **Backend**: Node.js, Express, TypeScript
-- **Database**: PostgreSQL with Prisma ORM
+- Next.js 16, React, Privy (wallet authentication)
+- PostgreSQL with Prisma ORM
+- Solana (Codama-generated client)
 
 ## Setup
 
@@ -18,114 +18,54 @@ A full-stack application for managing prediction markets with wallet authenticat
 
 ### Installation
 
-1. Install all dependencies:
+1. Install dependencies:
 ```bash
-npm run install:all
+pnpm install
 ```
 
-2. Set up environment variables:
-
-**Frontend** (`frontend/.env.local`):
+2. Set up environment variables (`.env`):
 ```
+DATABASE_URL="postgresql://user:password@localhost:5432/kleos"
 NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id_here
-```
-
-**Backend** (`backend/.env`):
-```
-DATABASE_URL="postgresql://user:password@localhost:5432/kanzz?schema=public"
-PORT=3001
 ```
 
 3. Set up the database:
 ```bash
-cd backend
-npx prisma generate
-npx prisma migrate dev
+pnpm prisma:generate
+pnpm prisma:migrate
 ```
 
-4. Initialize the protocol (one-time setup):
+4. Run the dev server:
 ```bash
-# Use the admin endpoint to initialize protocol
-POST http://localhost:3001/api/protocol/initialize
-{
-  "protocolFeeBps": 100,
-  "treasury": "treasury_address",
-  "adminAuthority": "admin_wallet_address"
-}
+pnpm dev
 ```
 
-5. Run the development servers:
+App runs at http://localhost:3000
+
+### Regenerate Solana client (Codama)
+
 ```bash
-npm run dev
+pnpm generate:client
 ```
-
-This will start:
-- Frontend on http://localhost:3000
-- Backend on http://localhost:3001
 
 ## Project Structure
 
 ```
-kanzz/
-├── frontend/          # Next.js frontend application
-│   ├── app/          # Next.js app directory
-│   │   ├── page.tsx  # Market listing
-│   │   ├── markets/  # Market detail pages
-│   │   ├── positions/ # User positions
-│   │   └── admin/    # Admin panel
-│   └── ...
-├── backend/          # Express backend server
-│   ├── src/
-│   │   ├── routes/   # API routes
-│   │   │   ├── protocol.ts
-│   │   │   ├── markets.ts
-│   │   │   └── positions.ts
-│   │   ├── types/    # TypeScript types
-│   │   └── index.ts  # Server entry point
-│   └── prisma/       # Prisma schema and migrations
-└── ...
+kleos-client/
+├── app/              # Next.js app directory
+│   ├── api/          # API route handlers
+│   ├── markets/      # Market pages
+│   ├── positions/    # User positions
+│   └── admin/        # Admin panel
+├── components/
+├── lib/
+│   └── solana/       # Codama-generated Solana client
+├── prisma/
+└── scripts/          # Code generation scripts
 ```
-
-## Database Schema
-
-- **Protocol**: Stores protocol configuration (admin, treasury, fees, etc.)
-- **Market**: Stores market data (status, stakes, timestamps, etc.)
-- **Position**: Stores user positions per market
 
 ## API Endpoints
 
-### Protocol
-- `POST /api/protocol/initialize` - Initialize protocol (one-time)
-- `GET /api/protocol` - Get protocol state
-- `PUT /api/protocol` - Update protocol settings
-
-### Markets
-- `POST /api/markets` - Create new market (admin only)
-- `GET /api/markets` - List all markets (with filters)
-- `GET /api/markets/:marketId` - Get market details
-- `PUT /api/markets/:marketId` - Edit market (admin, draft only)
-- `POST /api/markets/:marketId/open` - Open market (admin)
-- `POST /api/markets/:marketId/close` - Close market (anyone)
-- `POST /api/markets/:marketId/settle` - Settle market (anyone)
-
-### Positions
-- `POST /api/positions` - Place a position
-- `GET /api/positions/market/:marketId` - Get all positions for a market
-- `GET /api/positions/user/:user` - Get all positions for a user
-- `GET /api/positions/:positionId` - Get position details
-- `POST /api/positions/:positionId/claim` - Claim payout
-
-## Features
-
-- **Market Lifecycle**: Create, edit, open, close, and settle markets
-- **Position Management**: Place positions, track stakes, claim payouts
-- **Admin Panel**: Manage protocol settings and markets
-- **Wallet Integration**: Privy wallet authentication
-- **Real-time Updates**: View market status and positions
-
-## Market Status Flow
-
-1. **Draft** → Created by admin, can be edited
-2. **Open** → Market is accepting positions
-3. **Closed** → Market closed, no new positions
-4. **Settled** → Winners determined, payouts available
+- **Protocol**: `/api/protocol`, `/api/protocol/initialize`
+- **Markets**: `/api/markets`, `/api/markets/[marketId]`, open, close, settle
+- **Positions**: `/api/positions`, market/user routes, claim

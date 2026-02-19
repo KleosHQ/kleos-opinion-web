@@ -1,5 +1,5 @@
 {
-  "address": "kLeosk5KrdC8uXDRh66QhvwXqnjfkeadb7mU4ekGqcK",
+  "address": "C4yTgqHinYtRhqJrd9RRE19yrKKcf2LEfiS99Hq1waww",
   "metadata": {
     "name": "kleos_protocol",
     "version": "0.1.0",
@@ -114,8 +114,16 @@
       ],
       "accounts": [
         {
+          "name": "signer",
+          "signer": true
+        },
+        {
           "name": "market",
           "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -381,6 +389,10 @@
         {
           "name": "market",
           "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -455,6 +467,10 @@
         {
           "name": "protocol_fee_bps",
           "type": "u16"
+        },
+        {
+          "name": "treasury",
+          "type": "pubkey"
         }
       ]
     },
@@ -623,6 +639,10 @@
       ],
       "accounts": [
         {
+          "name": "signer",
+          "signer": true
+        },
+        {
           "name": "protocol",
           "pda": {
             "seeds": [
@@ -678,6 +698,10 @@
         {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -723,6 +747,10 @@
               }
             ]
           }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -885,10 +913,6 @@
           {
             "name": "total_effective_stake",
             "type": "u128"
-          },
-          {
-            "name": "winning_item_index",
-            "type": "u8"
           },
           {
             "name": "effective_stake_per_item",

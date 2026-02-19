@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MarketStatus {
+  Draft
+  Open
+  Closed
+  Settled
+}
+
+// Protocol: on-chain sync (unchanged)
+model Protocol {
+  id             String   @id @default(cuid())
+  adminAuthority String   @unique // Pubkey as string
+  treasury       String // Pubkey as string
+  protocolFeeBps Int      @default(0) // 0-10000 (basis points)
+  marketCount    BigInt   @default(0)
+  paused         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  markets Market[]
+
+  @@index([adminAuthority])
+}
+
+// Game layer: user aggregates (FairScore cache, streak, totals)
+model User {
+  id                         String   @id @default(cuid())
+  wallet                     String   @unique
+  fairscoreCached            Float?
+  fairscoreTier              String?
+  fairscoreLastUpdatedAt     DateTime?
+  reputationMultiplierCached Float?
+  streakCurrent              Int      @default(0)
+  streakBest                 Int      @default(0)
+  streakLastMarketId         String?
+  streakLastActionAt         DateTime?
+  totalMarketsParticipated   Int      @default(0)
+  totalRawStaked             Float    @default(0)
+  totalEffectiveStaked       Float    @default(0)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  positions Position[]
+
+  @@index([wallet])
+}
+
+// Market: on-chain sync + game layer metadata
+model Market {
+  id                     String       @id @default(cuid())
+  marketId               BigInt       @unique
+  categoryId             BigInt
+  itemsHash              String // [u8; 32] as hex string
+  itemCount              Int
+  startTs                BigInt // Unix timestamp
+  endTs                  BigInt // Unix timestamp
+  status                 MarketStatus @default(Draft)
+  totalRawStake          BigInt       @default(0)
+  totalEffectiveStake    String // u128 as string
+  winningItemIndex       Int?
+  totalWinningEffectiveStake String? // u128 as string
+  protocolFeeAmount      BigInt?
+  distributablePool      BigInt?
+  positionsCount         Int          @default(0)
+  tokenMint              String // Pubkey as string
+  vault                  String // Pubkey as string
+  protocolId             String
+  protocol               Protocol     @relation(fields: [protocolId], references: [id])
+  // Game layer fields
+  title                  String?
+  items                  Json? // Array of item strings for display
+  swipeEnabled           Boolean      @default(true)
+  earlyPhaseEndTs        BigInt? // Optional early phase end (for stronger timing curve)
+  resolutionCadence      String?
+  participationCount     Int          @default(0)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  positions Position[]
+
+  @@index([marketId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([startTs])
+  @@index([endTs])
+}
+
+// Position: on-chain fields + game multipliers stored at creation (never recomputed)
+model Position {
+  id                     String   @id @default(cuid())
+  marketId               String
+  user                   String // Wallet pubkey (on-chain)
+  selectedItemIndex      Int
+  rawStake               BigInt
+  effectiveStake         String // u128 as string (on-chain)
+  reputationMultiplier   Float // Stored at creation
+  timingMultiplier       Float // Stored at creation
+  streakMultiplier       Float // Stored at creation
+  breakdown              Json? // { reputation, timing, streak, explanations }
+  fairscore              Int? // FairScore at placement (legacy)
+  claimed                Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  // Optional FK for game stats
+  userId                 String?
+  userRef                User?    @relation(fields: [userId], references: [id])
+
+  market                 Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@unique([marketId, user])
+  @@index([user])
+  @@index([marketId])
+  @@index([userId])
+  @@index([claimed])
+}
