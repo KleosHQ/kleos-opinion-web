@@ -30,6 +30,17 @@ export async function GET(
     return NextResponse.json(serializeBigInt(positions))
   } catch (error) {
     console.error('Error fetching user positions:', error)
-    return NextResponse.json({ error: 'Failed to fetch user positions' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorCode = (error as any)?.code
+    console.error('Error details:', { 
+      errorMessage, 
+      errorCode,
+      error: error instanceof Error ? error.toString() : String(error)
+    })
+    return NextResponse.json({ 
+      error: 'Failed to fetch user positions',
+      details: errorMessage,
+      code: errorCode
+    }, { status: 500 })
   }
 }

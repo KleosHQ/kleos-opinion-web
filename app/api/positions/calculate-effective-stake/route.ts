@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Market not found' }, { status: 404 })
     }
 
+    const calculationTimestamp = Math.floor(Date.now() / 1000)
     const result = await calculateEffectiveStake({
       wallet,
       marketId,
@@ -40,11 +41,13 @@ export async function POST(request: NextRequest) {
       marketStartTs: Number(onchainMarket.startTs),
       marketEndTs: Number(onchainMarket.endTs),
       selectedItemIndex,
+      timestamp: calculationTimestamp, // Pass timestamp to ensure consistency
     })
 
     return NextResponse.json({
       effectiveStake: result.effectiveStake / 1e9,
       effectiveStakeLamports: result.effectiveStake,
+      calculationTimestamp, // Include timestamp so frontend can pass it back
       multipliers: {
         reputation: result.reputationMultiplier,
         timing: result.timingMultiplier,

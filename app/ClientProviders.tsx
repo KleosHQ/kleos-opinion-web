@@ -5,10 +5,13 @@ import type { ReactNode } from 'react'
 import { PrivyProvider } from '@privy-io/react-auth'
 import { Toaster } from '@/components/ui/sonner'
 import { toSolanaWalletConnectors } from '@privy-io/react-auth/solana'
+import { createSolanaRpc, createSolanaRpcSubscriptions } from '@solana/kit'
 import { SolanaWalletGuard } from '@/components/SolanaWalletGuard'
 
 export default function ClientProviders({ children }: { children: ReactNode }) {
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID
+  const solanaRpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'
+  const solanaWsUrl = solanaRpcUrl.replace('https://', 'wss://').replace('http://', 'ws://')
 
   if (!privyAppId) {
     return (
@@ -52,6 +55,15 @@ FAIRSCALE_API_KEY=...`}
         embeddedWallets: {
           solana: {
             createOnLogin: 'off',
+          },
+        },
+        // ✅ Official Privy Solana RPC configuration
+        solana: {
+          rpcs: {
+            'solana:devnet': {
+              rpc: createSolanaRpc(solanaRpcUrl),
+              rpcSubscriptions: createSolanaRpcSubscriptions(solanaWsUrl),
+            },
           },
         },
       }}

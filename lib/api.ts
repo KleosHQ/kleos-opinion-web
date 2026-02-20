@@ -51,7 +51,7 @@ export const positionsApi = {
     selectedItemIndex?: number
   }) => api.post('/positions/calculate-effective-stake', data),
   
-  create: (data: { marketId: string; user: string; selectedItemIndex: number; rawStake: string; effectiveStake: string }) =>
+  create: (data: { marketId: string; user: string; selectedItemIndex: number; rawStake: string; effectiveStake: string; calculationTimestamp?: number }) =>
     api.post('/positions', data),
 
   confirm: (data: {

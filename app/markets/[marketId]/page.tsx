@@ -228,115 +228,82 @@ export default function MarketDetailPage() {
       })
 
       const calculatedEffectiveStake = effectiveStakeResponse.data.effectiveStake
+      // effectiveStakeLamports is already in lamports (integer)
       const effectiveStakeLamports = effectiveStakeResponse.data.effectiveStakeLamports ?? Math.floor(calculatedEffectiveStake * 1e9)
       const fairscore = effectiveStakeResponse.data.fairscore
       const reputationMultiplier = effectiveStakeResponse.data.reputationMultiplier
       const timingMultiplier = effectiveStakeResponse.data.timingMultiplier
+      const calculationTimestamp = effectiveStakeResponse.data.calculationTimestamp
 
       console.log('Effective Stake Calculation:', {
         rawStake: rawStakeNum,
         effectiveStake: calculatedEffectiveStake,
+        effectiveStakeLamports,
         fairscore,
         reputationMultiplier,
         timingMultiplier,
+        calculationTimestamp,
       })
 
-      // Step 2: Validate with backend (includes effective stake validation)
-      const validationResponse = await positionsApi.create({
-        marketId,
-        user: walletAddress,
-        selectedItemIndex: selectedItem,
-        rawStake: rawStakeNum.toString(),
-        effectiveStake: String(Math.floor(effectiveStakeLamports)),
-      })
+      // Step 2: Validate with backend and get transaction (includes effective stake validation)
+      // effectiveStakeLamports is already an integer in lamports, just convert to string
+      // Pass calculationTimestamp so backend uses the same timestamp for consistency
+      let validationResponse
+      try {
+        validationResponse = await positionsApi.create({
+          marketId,
+          user: walletAddress,
+          selectedItemIndex: selectedItem,
+          rawStake: rawStakeNum.toString(),
+          effectiveStake: String(effectiveStakeLamports),
+          calculationTimestamp, // Pass timestamp to ensure backend uses same time
+        })
 
-      if (!validationResponse.data.success) {
-        throw new Error(validationResponse.data.error || 'Validation failed')
+        if (!validationResponse.data.success) {
+          const errorMsg = validationResponse.data.error || 'Validation failed'
+          const errorDetails = validationResponse.data
+          console.error('Validation failed:', errorDetails)
+          throw new Error(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg))
+        }
+      } catch (apiError: any) {
+        // Log the full error response for debugging
+        console.error('Full API error object:', {
+          message: apiError?.message,
+          response: apiError?.response,
+          responseData: apiError?.response?.data,
+          responseStatus: apiError?.response?.status,
+          responseHeaders: apiError?.response?.headers,
+          request: apiError?.request,
+          config: apiError?.config,
+        })
+        if (apiError?.response?.data) {
+          console.error('Backend API error response:', JSON.stringify(apiError.response.data, null, 2))
+          console.error('Status:', apiError.response.status)
+        } else {
+          console.error('No response data in error - might be network error or empty response')
+        }
+        throw apiError
       }
 
-      // Step 2: Create on-chain transaction
+      // Step 3: Backend has created the transaction, now sign and send it
       const solanaWallet = wallets.find(w => w.address && !w.address.startsWith('0x') && w.address === walletAddress)
 
       if (!solanaWallet) {
         throw new Error('Solana wallet not found')
       }
 
-      // Get market PDA
-      const { getMarketPda } = await import('@/lib/solana/client')
-      const [marketPda] = await getMarketPda(BigInt(marketId))
-      const tokenMintPubkey = new PublicKey(market.tokenMint)
-
-      // Convert to lamports for on-chain
-      const rawStakeLamports = BigInt(Math.floor(rawStakeNum * 1e9))
-      const effectiveLamportsBigInt = BigInt(Math.floor(effectiveStakeLamports))
-
-      let transaction: Transaction
-
-      if (market.isNative) {
-        // Native SOL market: no mint, no ATA; transfer lamports to vault PDA
-        transaction = await client.placePositionNative(
-          publicKey,
-          marketPda,
-          selectedItem,
-          rawStakeLamports,
-          effectiveLamportsBigInt
-        )
-      } else {
-        // SPL token market: detect token program, ensure ATA exists, then place
-        const tokenProgram = await getTokenProgramForMint(connection, tokenMintPubkey)
-        const userAta = await getAssociatedTokenAddress(
-          tokenMintPubkey,
-          publicKey,
-          false,
-          tokenProgram,
-          ASSOCIATED_TOKEN_PROGRAM_ID
-        )
-        const ataInfo = await connection.getAccountInfo(userAta)
-        if (!ataInfo) {
-          const createAtaTx = new Transaction().add(
-            createAssociatedTokenAccountInstruction(
-              publicKey,
-              userAta,
-              publicKey,
-              tokenMintPubkey,
-              tokenProgram,
-              ASSOCIATED_TOKEN_PROGRAM_ID
-            )
-          )
-          const { blockhash: bh1, lastValidBlockHeight: lvh1 } = await connection.getLatestBlockhash()
-          createAtaTx.recentBlockhash = bh1
-          createAtaTx.feePayer = publicKey
-          const sigAta = await solanaWallet.signAndSendTransaction({
-            transaction: createAtaTx.serialize({ requireAllSignatures: false, verifySignatures: false }),
-            chain: 'solana:devnet',
-          })
-          const sigStr = typeof sigAta === 'string' ? sigAta : bs58.encode(sigAta.signature ?? sigAta)
-          await connection.confirmTransaction({ signature: sigStr, blockhash: bh1, lastValidBlockHeight: lvh1 }, 'confirmed')
-        }
-        transaction = await client.placePosition(
-          publicKey,
-          marketPda,
-          tokenMintPubkey,
-          selectedItem,
-          rawStakeLamports,
-          effectiveLamportsBigInt,
-          tokenProgram
-        )
-      }
-
-      // Get recent blockhash
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
-      if (transaction instanceof Transaction) {
-        transaction.recentBlockhash = blockhash
-        transaction.feePayer = publicKey
-      }
+      // Deserialize transaction from backend
+      const transactionBuffer = Buffer.from(validationResponse.data.transaction, 'base64')
+      const transaction = Transaction.from(transactionBuffer)
+      
+      const { blockhash, lastValidBlockHeight } = validationResponse.data
 
       // Sign and send transaction
       const signResult = await solanaWallet.signAndSendTransaction({
-        transaction: transaction instanceof Transaction ? transaction.serialize({
+        transaction: transaction.serialize({
           requireAllSignatures: false,
           verifySignatures: false,
-        }) : transaction,
+        }),
         chain: 'solana:devnet',
       })
 
@@ -363,8 +330,8 @@ export default function MarketDetailPage() {
         effectiveStake: pos.effectiveStake,
         dbMarketId,
         breakdown,
-        marketStartTs: Number(market.startTs),
-        marketEndTs: Number(market.endTs),
+        marketStartTs: validationResponse.data.marketStartTs,
+        marketEndTs: validationResponse.data.marketEndTs,
       })
 
       toast.success('Position placed!', `Influence: ${calculatedEffectiveStake} SOL · Credibility: ${fairscore} · Reputation: ${reputationMultiplier.toFixed(2)}x · Timing: ${timingMultiplier.toFixed(2)}x`)
@@ -373,6 +340,10 @@ export default function MarketDetailPage() {
       fetchMarket()
     } catch (error: any) {
       console.error('Error placing position:', error)
+      // Log the full error response if available
+      if (error?.response?.data) {
+        console.error('Backend error response:', error.response.data)
+      }
       toast.fromApiOrProgramError(error, 'Failed to place position')
     } finally {
       setPlacingPosition(false)

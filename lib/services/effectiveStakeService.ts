@@ -164,8 +164,9 @@ export async function calculateEffectiveStake(params: {
   marketStartTs: number
   marketEndTs: number
   selectedItemIndex?: number
+  timestamp?: number // Optional timestamp to use instead of Date.now() (for consistency between frontend/backend)
 }): Promise<EffectiveStakeResult> {
-  const now = Math.floor(Date.now() / 1000)
+  const now = params.timestamp ?? Math.floor(Date.now() / 1000)
 
   const [fairscore, streak] = await Promise.all([
     getFairScore(params.wallet),

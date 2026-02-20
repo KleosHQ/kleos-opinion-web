@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       totalRawStake: bigint
       totalEffectiveStake: string
       winningItemIndex: number | null
-    }>
+    }> = []
     
     try {
       dbMarkets = await prisma.market.findMany({
@@ -66,34 +66,64 @@ export async function GET(request: NextRequest) {
       })
     } catch (schemaError: any) {
       // If schema is out of sync (missing columns), fetch without optional fields
-      if (schemaError?.code === 'P2022' || schemaError?.message?.includes('does not exist')) {
+      const errorCode = schemaError?.code
+      const errorMessage = schemaError?.message || String(schemaError)
+      
+      if (errorCode === 'P2022' || errorMessage.includes('does not exist') || errorCode === 'P2021') {
         console.warn('Database schema out of sync, fetching markets without optional fields. Run: pnpm prisma db push')
-        dbMarkets = await prisma.market.findMany({
-          select: {
-            marketId: true,
-            participationCount: true,
-            itemCount: true,
-            startTs: true,
-            endTs: true,
-            status: true,
-            itemsHash: true,
-            tokenMint: true,
-            vault: true,
-            totalRawStake: true,
-            totalEffectiveStake: true,
-            winningItemIndex: true,
-          },
-        }) as any
-        // Add null for missing fields
-        dbMarkets = dbMarkets.map(m => ({ ...m, title: null, items: null }))
+        console.warn('Schema error:', { code: errorCode, message: errorMessage })
+        try {
+          dbMarkets = await prisma.market.findMany({
+            select: {
+              marketId: true,
+              participationCount: true,
+              itemCount: true,
+              startTs: true,
+              endTs: true,
+              status: true,
+              itemsHash: true,
+              tokenMint: true,
+              vault: true,
+              totalRawStake: true,
+              totalEffectiveStake: true,
+              winningItemIndex: true,
+            },
+          }) as any
+          // Add null for missing fields
+          dbMarkets = dbMarkets.map(m => ({ ...m, title: null, items: null }))
+        } catch (fallbackError: any) {
+          console.error('Fallback query also failed:', {
+            code: fallbackError?.code,
+            message: fallbackError?.message,
+            error: fallbackError
+          })
+          // If even the fallback fails, return empty array and continue
+          dbMarkets = []
+        }
       } else {
-        throw schemaError
+        // For other errors, log and continue with empty array
+        console.error('Database query error (non-schema):', {
+          code: errorCode,
+          message: errorMessage,
+          error: schemaError
+        })
+        dbMarkets = []
       }
     }
 
-    const userPositionMarketIds = wallet
-      ? await prisma.position.findMany({ where: { user: wallet }, select: { market: { select: { marketId: true } } } }).then((ps) => ps.map((p) => p.market.marketId.toString()))
-      : [] as string[]
+    let userPositionMarketIds: string[] = []
+    if (wallet) {
+      try {
+        userPositionMarketIds = await prisma.position.findMany({ 
+          where: { user: wallet }, 
+          select: { market: { select: { marketId: true } } } 
+        }).then((ps) => ps.map((p) => p.market.marketId.toString()))
+      } catch (positionError) {
+        console.warn('Error fetching user positions for market filtering:', positionError)
+        // Continue without user position filtering
+        userPositionMarketIds = []
+      }
+    }
 
     // Try to fetch on-chain markets, but don't fail if RPC is unavailable
     let onchainMarkets: Awaited<ReturnType<typeof fetchAllOnchainMarkets>> = []
@@ -164,41 +194,74 @@ export async function GET(request: NextRequest) {
     }
 
     const markets = filteredMarkets.map((market) => {
-      const db = dbByMarketId.get(market.marketId)
-      const startTs = Number(market.startTs)
-      const endTs = Number(market.endTs)
-      return {
-        id: market.pda,
-        marketId: market.marketId,
-        title: db?.title ?? null,
-        itemCount: market.itemCount,
-        status: market.status,
-        startTs: market.startTs,
-        endTs: market.endTs,
-        totalRawStake: market.totalRawStake,
-        totalEffectiveStake: market.totalEffectiveStake,
-        positionsCount: db?.participationCount ?? 0,
-        participationCount: db?.participationCount ?? 0,
-        phase: getMarketPhase(startTs, endTs),
-        userPlayed: wallet ? userPositionMarketIds.includes(market.marketId) : undefined,
-        winningItemIndex: market.winningItemIndex,
-        itemsHash: market.itemsHash,
-        tokenMint: market.tokenMint,
-        vault: market.vault,
-        createdAt: new Date().toISOString(),
-        positions: [],
+      try {
+        const db = dbByMarketId.get(market.marketId)
+        const startTs = Number(market.startTs)
+        const endTs = Number(market.endTs)
+        return {
+          id: market.pda,
+          marketId: market.marketId,
+          title: db?.title ?? null,
+          itemCount: market.itemCount,
+          status: market.status,
+          startTs: market.startTs,
+          endTs: market.endTs,
+          totalRawStake: market.totalRawStake,
+          totalEffectiveStake: market.totalEffectiveStake,
+          positionsCount: db?.participationCount ?? 0,
+          participationCount: db?.participationCount ?? 0,
+          phase: getMarketPhase(startTs, endTs),
+          userPlayed: wallet ? userPositionMarketIds.includes(market.marketId) : undefined,
+          winningItemIndex: market.winningItemIndex,
+          itemsHash: market.itemsHash,
+          tokenMint: market.tokenMint,
+          vault: market.vault,
+          createdAt: new Date().toISOString(),
+          positions: [],
+        }
+      } catch (mapError) {
+        console.error('Error mapping market:', mapError, market)
+        // Return a minimal valid market object
+        return {
+          id: market.pda,
+          marketId: market.marketId,
+          title: null,
+          itemCount: market.itemCount || 0,
+          status: market.status || 'Draft',
+          startTs: market.startTs || '0',
+          endTs: market.endTs || '0',
+          totalRawStake: market.totalRawStake || '0',
+          totalEffectiveStake: market.totalEffectiveStake || '0',
+          positionsCount: 0,
+          participationCount: 0,
+          phase: 'early' as const,
+          userPlayed: undefined,
+          winningItemIndex: market.winningItemIndex,
+          itemsHash: market.itemsHash || '',
+          tokenMint: market.tokenMint || '',
+          vault: market.vault || '',
+          createdAt: new Date().toISOString(),
+          positions: [],
+        }
       }
     })
 
     return NextResponse.json(markets)
   } catch (error) {
-    console.error('Error fetching markets from on-chain:', error)
+    console.error('Error fetching markets:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
-    console.error('Error details:', { errorMessage, errorStack, error })
+    const errorCode = (error as any)?.code
+    console.error('Error details:', { 
+      errorMessage, 
+      errorStack, 
+      errorCode,
+      error: error instanceof Error ? error.toString() : String(error)
+    })
     return NextResponse.json({ 
       error: 'Failed to fetch markets',
-      details: errorMessage 
+      details: errorMessage,
+      code: errorCode
     }, { status: 500 })
   }
 }
