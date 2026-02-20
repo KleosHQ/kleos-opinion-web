@@ -20,6 +20,7 @@ export async function GET(
             status: true,
             itemCount: true,
             winningItemIndex: true,
+            tokenMint: true,
           },
         },
       },

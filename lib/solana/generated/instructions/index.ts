@@ -7,11 +7,15 @@
  */
 
 export * from "./claimPayout";
+export * from "./claimPayoutNative";
 export * from "./closeMarket";
 export * from "./createMarket";
+export * from "./createMarketNative";
 export * from "./editMarket";
 export * from "./initializeProtocol";
 export * from "./openMarket";
 export * from "./placePosition";
+export * from "./placePositionNative";
 export * from "./settleMarket";
+export * from "./settleMarketNative";
 export * from "./updateProtocol";

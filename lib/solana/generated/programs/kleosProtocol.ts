@@ -18,27 +18,35 @@ import {
 } from "@solana/kit";
 import {
   parseClaimPayoutInstruction,
+  parseClaimPayoutNativeInstruction,
   parseCloseMarketInstruction,
   parseCreateMarketInstruction,
+  parseCreateMarketNativeInstruction,
   parseEditMarketInstruction,
   parseInitializeProtocolInstruction,
   parseOpenMarketInstruction,
   parsePlacePositionInstruction,
+  parsePlacePositionNativeInstruction,
   parseSettleMarketInstruction,
+  parseSettleMarketNativeInstruction,
   parseUpdateProtocolInstruction,
   type ParsedClaimPayoutInstruction,
+  type ParsedClaimPayoutNativeInstruction,
   type ParsedCloseMarketInstruction,
   type ParsedCreateMarketInstruction,
+  type ParsedCreateMarketNativeInstruction,
   type ParsedEditMarketInstruction,
   type ParsedInitializeProtocolInstruction,
   type ParsedOpenMarketInstruction,
   type ParsedPlacePositionInstruction,
+  type ParsedPlacePositionNativeInstruction,
   type ParsedSettleMarketInstruction,
+  type ParsedSettleMarketNativeInstruction,
   type ParsedUpdateProtocolInstruction,
 } from "../instructions";
 
 export const KLEOS_PROTOCOL_PROGRAM_ADDRESS =
-  "kLeosk5KrdC8uXDRh66QhvwXqnjfkeadb7mU4ekGqcK" as Address<"kLeosk5KrdC8uXDRh66QhvwXqnjfkeadb7mU4ekGqcK">;
+  "6jmg3EdNVE2PgLJHkzzGxG8aqsKWxLKvrgDjszTreAhD" as Address<"6jmg3EdNVE2PgLJHkzzGxG8aqsKWxLKvrgDjszTreAhD">;
 
 export enum KleosProtocolAccount {
   Market,
@@ -90,13 +98,17 @@ export function identifyKleosProtocolAccount(
 
 export enum KleosProtocolInstruction {
   ClaimPayout,
+  ClaimPayoutNative,
   CloseMarket,
   CreateMarket,
+  CreateMarketNative,
   EditMarket,
   InitializeProtocol,
   OpenMarket,
   PlacePosition,
+  PlacePositionNative,
   SettleMarket,
+  SettleMarketNative,
   UpdateProtocol,
 }
 
@@ -119,6 +131,17 @@ export function identifyKleosProtocolInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([150, 118, 110, 108, 112, 229, 145, 174]),
+      ),
+      0,
+    )
+  ) {
+    return KleosProtocolInstruction.ClaimPayoutNative;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([88, 154, 248, 186, 48, 14, 123, 244]),
       ),
       0,
@@ -136,6 +159,17 @@ export function identifyKleosProtocolInstruction(
     )
   ) {
     return KleosProtocolInstruction.CreateMarket;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([35, 110, 189, 223, 219, 138, 49, 141]),
+      ),
+      0,
+    )
+  ) {
+    return KleosProtocolInstruction.CreateMarketNative;
   }
   if (
     containsBytes(
@@ -185,12 +219,34 @@ export function identifyKleosProtocolInstruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([118, 20, 49, 30, 199, 227, 113, 107]),
+      ),
+      0,
+    )
+  ) {
+    return KleosProtocolInstruction.PlacePositionNative;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([193, 153, 95, 216, 166, 6, 144, 217]),
       ),
       0,
     )
   ) {
     return KleosProtocolInstruction.SettleMarket;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([24, 173, 149, 74, 233, 65, 24, 146]),
+      ),
+      0,
+    )
+  ) {
+    return KleosProtocolInstruction.SettleMarketNative;
   }
   if (
     containsBytes(
@@ -209,17 +265,23 @@ export function identifyKleosProtocolInstruction(
 }
 
 export type ParsedKleosProtocolInstruction<
-  TProgram extends string = "kLeosk5KrdC8uXDRh66QhvwXqnjfkeadb7mU4ekGqcK",
+  TProgram extends string = "6jmg3EdNVE2PgLJHkzzGxG8aqsKWxLKvrgDjszTreAhD",
 > =
   | ({
       instructionType: KleosProtocolInstruction.ClaimPayout;
     } & ParsedClaimPayoutInstruction<TProgram>)
+  | ({
+      instructionType: KleosProtocolInstruction.ClaimPayoutNative;
+    } & ParsedClaimPayoutNativeInstruction<TProgram>)
   | ({
       instructionType: KleosProtocolInstruction.CloseMarket;
     } & ParsedCloseMarketInstruction<TProgram>)
   | ({
       instructionType: KleosProtocolInstruction.CreateMarket;
     } & ParsedCreateMarketInstruction<TProgram>)
+  | ({
+      instructionType: KleosProtocolInstruction.CreateMarketNative;
+    } & ParsedCreateMarketNativeInstruction<TProgram>)
   | ({
       instructionType: KleosProtocolInstruction.EditMarket;
     } & ParsedEditMarketInstruction<TProgram>)
@@ -233,8 +295,14 @@ export type ParsedKleosProtocolInstruction<
       instructionType: KleosProtocolInstruction.PlacePosition;
     } & ParsedPlacePositionInstruction<TProgram>)
   | ({
+      instructionType: KleosProtocolInstruction.PlacePositionNative;
+    } & ParsedPlacePositionNativeInstruction<TProgram>)
+  | ({
       instructionType: KleosProtocolInstruction.SettleMarket;
     } & ParsedSettleMarketInstruction<TProgram>)
+  | ({
+      instructionType: KleosProtocolInstruction.SettleMarketNative;
+    } & ParsedSettleMarketNativeInstruction<TProgram>)
   | ({
       instructionType: KleosProtocolInstruction.UpdateProtocol;
     } & ParsedUpdateProtocolInstruction<TProgram>);
@@ -251,6 +319,13 @@ export function parseKleosProtocolInstruction<TProgram extends string>(
         ...parseClaimPayoutInstruction(instruction),
       };
     }
+    case KleosProtocolInstruction.ClaimPayoutNative: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: KleosProtocolInstruction.ClaimPayoutNative,
+        ...parseClaimPayoutNativeInstruction(instruction),
+      };
+    }
     case KleosProtocolInstruction.CloseMarket: {
       assertIsInstructionWithAccounts(instruction);
       return {
@@ -263,6 +338,13 @@ export function parseKleosProtocolInstruction<TProgram extends string>(
       return {
         instructionType: KleosProtocolInstruction.CreateMarket,
         ...parseCreateMarketInstruction(instruction),
+      };
+    }
+    case KleosProtocolInstruction.CreateMarketNative: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: KleosProtocolInstruction.CreateMarketNative,
+        ...parseCreateMarketNativeInstruction(instruction),
       };
     }
     case KleosProtocolInstruction.EditMarket: {
@@ -293,11 +375,25 @@ export function parseKleosProtocolInstruction<TProgram extends string>(
         ...parsePlacePositionInstruction(instruction),
       };
     }
+    case KleosProtocolInstruction.PlacePositionNative: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: KleosProtocolInstruction.PlacePositionNative,
+        ...parsePlacePositionNativeInstruction(instruction),
+      };
+    }
     case KleosProtocolInstruction.SettleMarket: {
       assertIsInstructionWithAccounts(instruction);
       return {
         instructionType: KleosProtocolInstruction.SettleMarket,
         ...parseSettleMarketInstruction(instruction),
+      };
+    }
+    case KleosProtocolInstruction.SettleMarketNative: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: KleosProtocolInstruction.SettleMarketNative,
+        ...parseSettleMarketNativeInstruction(instruction),
       };
     }
     case KleosProtocolInstruction.UpdateProtocol: {

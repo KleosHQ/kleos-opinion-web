@@ -1,8 +1,6 @@
 import { Connection, PublicKey } from '@solana/web3.js'
 import bs58 from 'bs58'
-
-// Program ID from IDL (kLeosk5KrdC8uXDRh66QhvwXqnjfkeadb7mU4ekGqcK)
-const PROGRAM_ID = new PublicKey('kLeosk5KrdC8uXDRh66QhvwXqnjfkeadb7mU4ekGqcK')
+import { PROGRAM_ID } from '@/lib/solana/client'
 
 // Market account discriminator (first 8 bytes)
 const MARKET_DISCRIMINATOR = new Uint8Array([219, 190, 213, 55, 0, 227, 198, 154])
@@ -50,23 +48,11 @@ function getMarketPda(marketId: bigint): [PublicKey, number] {
   return PublicKey.findProgramAddressSync([MARKET_SEED, marketIdBuffer], PROGRAM_ID)
 }
 
-// Market account structure (based on IDL)
-// discriminator: 8 bytes
-// marketId: u64 (8 bytes)
-// itemsHash: [u8; 32] (32 bytes)
-// itemCount: u8 (1 byte)
-// startTs: i64 (8 bytes)
-// endTs: i64 (8 bytes)
-// status: enum (1 byte: 0=Draft, 1=Open, 2=Closed, 3=Settled)
-// totalRawStake: u64 (8 bytes)
-// totalEffectiveStake: u128 (16 bytes)
-// winningItemIndex: u8 (1 byte)
-// effectiveStakePerItem: [u128; 10] (160 bytes)
-// protocolFeeAmount: u64 (8 bytes)
-// distributablePool: u64 (8 bytes)
-// tokenMint: Pubkey (32 bytes)
-// vault: Pubkey (32 bytes)
-// bump: u8 (1 byte)
+// Market account structure – matches kleos-protocol programs/kleos-protocol/src/states/market.rs
+// discriminator: 8 | marketId: u64 8 | itemsHash: [u8;32] 32 | itemCount: u8 1
+// startTs: i64 8 | endTs: i64 8 | status: enum 1 | totalRawStake: u64 8 | totalEffectiveStake: u128 16
+// effectiveStakePerItem: [u128;10] 160 | protocolFeeAmount: u64 8 | distributablePool: u64 8
+// tokenMint: Pubkey 32 | vault: Pubkey 32 | bump: u8 1 | is_native: bool 1
 
 const MARKET_ACCOUNT_SIZE = 332 // Total size from IDL
 
@@ -111,17 +97,13 @@ function decodeMarketAccount(data: Buffer | Uint8Array, pubkey: string) {
   const totalRawStake = readBigUInt64LE(data, offset)
   offset += 8
 
-  // totalEffectiveStake: u128 (16 bytes, little-endian)
+  // totalEffectiveStake: u128 (16 bytes)
   const totalEffectiveStakeLow = readBigUInt64LE(data, offset)
   const totalEffectiveStakeHigh = readBigUInt64LE(data, offset + 8)
   const totalEffectiveStake = totalEffectiveStakeLow + (totalEffectiveStakeHigh << BigInt(64))
   offset += 16
 
-  // winningItemIndex: u8
-  const winningItemIndex = readUInt8(data, offset)
-  offset += 1
-
-  // Skip effectiveStakePerItem: [u128; 10] (160 bytes)
+  // effectiveStakePerItem: [u128; 10] (160 bytes) – no winningItemIndex in Market struct
   offset += 160
 
   // protocolFeeAmount: u64
@@ -140,7 +122,11 @@ function decodeMarketAccount(data: Buffer | Uint8Array, pubkey: string) {
   const vault = new PublicKey(data.slice(offset, offset + 32))
   offset += 32
 
-  // bump: u8 (skip, not needed)
+  // bump: u8 (1 byte)
+  offset += 1
+
+  // is_native: bool (1 byte)
+  const isNative = readUInt8(data, offset) !== 0
 
   return {
     pda: pubkey,
@@ -152,9 +138,10 @@ function decodeMarketAccount(data: Buffer | Uint8Array, pubkey: string) {
     status: status as 'Draft' | 'Open' | 'Closed' | 'Settled',
     totalRawStake: totalRawStake.toString(),
     totalEffectiveStake: totalEffectiveStake.toString(),
-    winningItemIndex: status === 'Settled' && winningItemIndex !== 255 ? winningItemIndex : null,
+    winningItemIndex: null as number | null, // Market struct has no winningItemIndex; DB stores it when settled
     tokenMint: tokenMint.toBase58(),
     vault: vault.toBase58(),
+    isNative,
   }
 }
 
@@ -266,4 +253,15 @@ export async function fetchOnchainMarketById(rpcUrl: string, marketId: string | 
 
 export async function fetchOnchainProtocolForMarket(rpcUrl: string) {
   return fetchOnchainProtocol(rpcUrl)
+}
+
+/** Fetch real on-chain vault token balance (lamports as string). Returns null if account missing. */
+export async function fetchVaultBalance(rpcUrl: string, vaultAddress: string): Promise<string | null> {
+  try {
+    const connection = new Connection(rpcUrl, 'confirmed')
+    const info = await connection.getTokenAccountBalance(new PublicKey(vaultAddress))
+    return info?.value?.amount ?? null
+  } catch {
+    return null
+  }
 }

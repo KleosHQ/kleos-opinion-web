@@ -9,6 +9,7 @@ import { useSolanaClient } from '@/lib/solana/useSolanaClient'
 import bs58 from 'bs58'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -19,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { toast } from '@/lib/utils/toast'
 
 interface InitializeProtocolModalProps {
   isOpen: boolean
@@ -82,11 +84,14 @@ export function InitializeProtocolModal({ isOpen, onClose, onSuccess }: Initiali
         adminAuthority: solanaWallet.address,
       })
 
+      toast.success('Protocol initialized successfully!')
       onSuccess()
       onClose()
     } catch (err: any) {
       console.error('Error initializing protocol:', err)
-      setError(err.message || 'Failed to initialize protocol')
+      const msg = err.response?.data?.error ?? err.message ?? 'Failed to initialize protocol'
+      setError(msg)
+      toast.fromApiOrProgramError(err, 'Failed to initialize protocol')
     } finally {
       setLoading(false)
     }
@@ -94,12 +99,12 @@ export function InitializeProtocolModal({ isOpen, onClose, onSuccess }: Initiali
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md p-6">
         <DialogHeader>
           <DialogTitle>Initialize Protocol</DialogTitle>
           <DialogDescription>Set protocol fee and become the admin</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label htmlFor="protocolFeeBps">Protocol Fee (bps)</Label>
             <Input
@@ -121,10 +126,12 @@ export function InitializeProtocolModal({ isOpen, onClose, onSuccess }: Initiali
           )}
           {!solanaWallet && <p className="text-sm text-destructive">Connect a Solana wallet first</p>}
         </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
+        <DialogFooter className="gap-2 pt-2">
+          <DialogClose asChild>
+            <Button variant="ghost" disabled={loading}>
+              Cancel
+            </Button>
+          </DialogClose>
           <Button onClick={handleInitialize} disabled={loading || !solanaWallet}>
             {loading ? 'Initializing...' : 'Initialize'}
           </Button>

@@ -1,14 +1,20 @@
-{
+/**
+ * Program IDL in camelCase format in order to be used in JS/TS.
+ *
+ * Note that this is only a type helper and is not the actual IDL. The original
+ * IDL can be found at `target/idl/kleos_protocol.json`.
+ */
+export type KleosProtocol = {
   "address": "6jmg3EdNVE2PgLJHkzzGxG8aqsKWxLKvrgDjszTreAhD",
   "metadata": {
-    "name": "kleos_protocol",
+    "name": "kleosProtocol",
     "version": "0.1.0",
     "spec": "0.1.0",
     "description": "Created with Anchor"
   },
   "instructions": [
     {
-      "name": "claim_payout",
+      "name": "claimPayout",
       "discriminator": [
         127,
         240,
@@ -65,7 +71,7 @@
           }
         },
         {
-          "name": "vault_authority",
+          "name": "vaultAuthority",
           "pda": {
             "seeds": [
               {
@@ -90,18 +96,104 @@
           "writable": true
         },
         {
-          "name": "user_token_account",
+          "name": "userTokenAccount",
           "writable": true
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": []
     },
     {
-      "name": "close_market",
+      "name": "claimPayoutNative",
+      "discriminator": [
+        150,
+        118,
+        110,
+        108,
+        112,
+        229,
+        145,
+        174
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closeMarket",
       "discriminator": [
         88,
         154,
@@ -122,14 +214,14 @@
           "writable": true
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
     },
     {
-      "name": "create_market",
+      "name": "createMarket",
       "discriminator": [
         103,
         226,
@@ -142,7 +234,7 @@
       ],
       "accounts": [
         {
-          "name": "admin_authority",
+          "name": "adminAuthority",
           "writable": true,
           "signer": true,
           "relations": [
@@ -189,13 +281,13 @@
               {
                 "kind": "account",
                 "path": "protocol.market_count",
-                "account": "Protocol"
+                "account": "protocol"
               }
             ]
           }
         },
         {
-          "name": "vault_authority",
+          "name": "vaultAuthority",
           "pda": {
             "seeds": [
               {
@@ -222,7 +314,7 @@
             "seeds": [
               {
                 "kind": "account",
-                "path": "vault_authority"
+                "path": "vaultAuthority"
               },
               {
                 "kind": "const",
@@ -263,7 +355,7 @@
               },
               {
                 "kind": "account",
-                "path": "token_mint"
+                "path": "tokenMint"
               }
             ],
             "program": {
@@ -306,32 +398,32 @@
           }
         },
         {
-          "name": "token_mint"
+          "name": "tokenMint"
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "associated_token_program",
+          "name": "associatedTokenProgram",
           "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "start_ts",
+          "name": "startTs",
           "type": "i64"
         },
         {
-          "name": "end_ts",
+          "name": "endTs",
           "type": "i64"
         },
         {
-          "name": "items_hash",
+          "name": "itemsHash",
           "type": {
             "array": [
               "u8",
@@ -340,13 +432,129 @@
           }
         },
         {
-          "name": "item_count",
+          "name": "itemCount",
           "type": "u8"
         }
       ]
     },
     {
-      "name": "edit_market",
+      "name": "createMarketNative",
+      "discriminator": [
+        35,
+        110,
+        189,
+        223,
+        219,
+        138,
+        49,
+        141
+      ],
+      "accounts": [
+        {
+          "name": "adminAuthority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "protocol"
+          ]
+        },
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "protocol.market_count",
+                "account": "protocol"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vaultAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "startTs",
+          "type": "i64"
+        },
+        {
+          "name": "endTs",
+          "type": "i64"
+        },
+        {
+          "name": "itemsHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "itemCount",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "editMarket",
       "discriminator": [
         77,
         92,
@@ -359,7 +567,7 @@
       ],
       "accounts": [
         {
-          "name": "admin_authority",
+          "name": "adminAuthority",
           "writable": true,
           "signer": true,
           "relations": [
@@ -391,21 +599,21 @@
           "writable": true
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "start_ts",
+          "name": "startTs",
           "type": "i64"
         },
         {
-          "name": "end_ts",
+          "name": "endTs",
           "type": "i64"
         },
         {
-          "name": "items_hash",
+          "name": "itemsHash",
           "type": {
             "array": [
               "u8",
@@ -414,13 +622,13 @@
           }
         },
         {
-          "name": "item_count",
+          "name": "itemCount",
           "type": "u8"
         }
       ]
     },
     {
-      "name": "initialize_protocol",
+      "name": "initializeProtocol",
       "discriminator": [
         188,
         233,
@@ -459,13 +667,13 @@
           }
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "protocol_fee_bps",
+          "name": "protocolFeeBps",
           "type": "u16"
         },
         {
@@ -475,7 +683,7 @@
       ]
     },
     {
-      "name": "open_market",
+      "name": "openMarket",
       "discriminator": [
         116,
         19,
@@ -488,7 +696,7 @@
       ],
       "accounts": [
         {
-          "name": "admin_authority",
+          "name": "adminAuthority",
           "writable": true,
           "signer": true,
           "relations": [
@@ -523,7 +731,7 @@
       "args": []
     },
     {
-      "name": "place_position",
+      "name": "placePosition",
       "discriminator": [
         218,
         31,
@@ -594,10 +802,10 @@
           }
         },
         {
-          "name": "token_mint"
+          "name": "tokenMint"
         },
         {
-          "name": "user_token_account",
+          "name": "userTokenAccount",
           "writable": true
         },
         {
@@ -605,31 +813,144 @@
           "writable": true
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "selected_item_index",
+          "name": "selectedItemIndex",
           "type": "u8"
         },
         {
-          "name": "raw_stake",
+          "name": "rawStake",
           "type": "u64"
         },
         {
-          "name": "effective_stake",
+          "name": "effectiveStake",
           "type": "u128"
         }
       ]
     },
     {
-      "name": "settle_market",
+      "name": "placePositionNative",
+      "discriminator": [
+        118,
+        20,
+        49,
+        30,
+        199,
+        227,
+        113,
+        107
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "selectedItemIndex",
+          "type": "u8"
+        },
+        {
+          "name": "rawStake",
+          "type": "u64"
+        },
+        {
+          "name": "effectiveStake",
+          "type": "u128"
+        }
+      ]
+    },
+    {
+      "name": "settleMarket",
       "discriminator": [
         193,
         153,
@@ -670,7 +991,7 @@
           "writable": true
         },
         {
-          "name": "vault_authority",
+          "name": "vaultAuthority",
           "pda": {
             "seeds": [
               {
@@ -695,22 +1016,99 @@
           "writable": true
         },
         {
-          "name": "treasury_token_account",
+          "name": "treasuryTokenAccount",
           "writable": true
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
     },
     {
-      "name": "update_protocol",
+      "name": "settleMarketNative",
+      "discriminator": [
+        24,
+        173,
+        149,
+        74,
+        233,
+        65,
+        24,
+        146
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "docs": [
+            "Treasury wallet that receives protocol fee (SOL)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateProtocol",
       "discriminator": [
         206,
         25,
@@ -723,7 +1121,7 @@
       ],
       "accounts": [
         {
-          "name": "admin_authority",
+          "name": "adminAuthority",
           "writable": true,
           "signer": true,
           "relations": [
@@ -752,13 +1150,13 @@
           }
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "protocol_fee_bps",
+          "name": "protocolFeeBps",
           "type": "u16"
         },
         {
@@ -774,7 +1172,7 @@
   ],
   "accounts": [
     {
-      "name": "Market",
+      "name": "market",
       "discriminator": [
         219,
         190,
@@ -787,7 +1185,7 @@
       ]
     },
     {
-      "name": "Position",
+      "name": "position",
       "discriminator": [
         170,
         188,
@@ -800,7 +1198,7 @@
       ]
     },
     {
-      "name": "Protocol",
+      "name": "protocol",
       "discriminator": [
         45,
         39,
@@ -816,72 +1214,72 @@
   "errors": [
     {
       "code": 6000,
-      "name": "InvalidProtocolFeeBps",
+      "name": "invalidProtocolFeeBps",
       "msg": "Protocol fee bps must be between 0 and 10000."
     },
     {
       "code": 6001,
-      "name": "Unauthorized",
+      "name": "unauthorized",
       "msg": "Unauthorized access."
     },
     {
       "code": 6002,
-      "name": "ProtocolPaused",
+      "name": "protocolPaused",
       "msg": "Protocol is paused."
     },
     {
       "code": 6003,
-      "name": "InvalidMarketState",
+      "name": "invalidMarketState",
       "msg": "Market is not in the required state."
     },
     {
       "code": 6004,
-      "name": "InvalidTimestamp",
+      "name": "invalidTimestamp",
       "msg": "Invalid timestamp."
     },
     {
       "code": 6005,
-      "name": "InvalidItemIndex",
+      "name": "invalidItemIndex",
       "msg": "Invalid item index."
     },
     {
       "code": 6006,
-      "name": "InvalidStakeAmount",
+      "name": "invalidStakeAmount",
       "msg": "Invalid stake amount."
     },
     {
       "code": 6007,
-      "name": "EffectiveStakeTooLarge",
+      "name": "effectiveStakeTooLarge",
       "msg": "Effective stake exceeds allowed multiplier."
     },
     {
       "code": 6008,
-      "name": "AlreadyClaimed",
+      "name": "alreadyClaimed",
       "msg": "Position already claimed."
     },
     {
       "code": 6009,
-      "name": "MarketAlreadySettled",
+      "name": "marketAlreadySettled",
       "msg": "Market already settled."
     },
     {
       "code": 6010,
-      "name": "MathOverflow",
+      "name": "mathOverflow",
       "msg": "Math overflow occurred."
     }
   ],
   "types": [
     {
-      "name": "Market",
+      "name": "market",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "market_id",
+            "name": "marketId",
             "type": "u64"
           },
           {
-            "name": "items_hash",
+            "name": "itemsHash",
             "type": {
               "array": [
                 "u8",
@@ -890,35 +1288,35 @@
             }
           },
           {
-            "name": "item_count",
+            "name": "itemCount",
             "type": "u8"
           },
           {
-            "name": "start_ts",
+            "name": "startTs",
             "type": "i64"
           },
           {
-            "name": "end_ts",
+            "name": "endTs",
             "type": "i64"
           },
           {
             "name": "status",
             "type": {
               "defined": {
-                "name": "MarketStatus"
+                "name": "marketStatus"
               }
             }
           },
           {
-            "name": "total_raw_stake",
+            "name": "totalRawStake",
             "type": "u64"
           },
           {
-            "name": "total_effective_stake",
+            "name": "totalEffectiveStake",
             "type": "u128"
           },
           {
-            "name": "effective_stake_per_item",
+            "name": "effectiveStakePerItem",
             "type": {
               "array": [
                 "u128",
@@ -927,15 +1325,15 @@
             }
           },
           {
-            "name": "protocol_fee_amount",
+            "name": "protocolFeeAmount",
             "type": "u64"
           },
           {
-            "name": "distributable_pool",
+            "name": "distributablePool",
             "type": "u64"
           },
           {
-            "name": "token_mint",
+            "name": "tokenMint",
             "type": "pubkey"
           },
           {
@@ -945,32 +1343,39 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "isNative",
+            "docs": [
+              "When true, market uses native SOL (lamports); vault is vault_authority PDA."
+            ],
+            "type": "bool"
           }
         ]
       }
     },
     {
-      "name": "MarketStatus",
+      "name": "marketStatus",
       "type": {
         "kind": "enum",
         "variants": [
           {
-            "name": "Draft"
+            "name": "draft"
           },
           {
-            "name": "Open"
+            "name": "open"
           },
           {
-            "name": "Closed"
+            "name": "closed"
           },
           {
-            "name": "Settled"
+            "name": "settled"
           }
         ]
       }
     },
     {
-      "name": "Position",
+      "name": "position",
       "type": {
         "kind": "struct",
         "fields": [
@@ -983,15 +1388,15 @@
             "type": "pubkey"
           },
           {
-            "name": "selected_item_index",
+            "name": "selectedItemIndex",
             "type": "u8"
           },
           {
-            "name": "raw_stake",
+            "name": "rawStake",
             "type": "u64"
           },
           {
-            "name": "effective_stake",
+            "name": "effectiveStake",
             "type": "u128"
           },
           {
@@ -1006,12 +1411,12 @@
       }
     },
     {
-      "name": "Protocol",
+      "name": "protocol",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "admin_authority",
+            "name": "adminAuthority",
             "type": "pubkey"
           },
           {
@@ -1019,11 +1424,11 @@
             "type": "pubkey"
           },
           {
-            "name": "protocol_fee_bps",
+            "name": "protocolFeeBps",
             "type": "u16"
           },
           {
-            "name": "market_count",
+            "name": "marketCount",
             "type": "u64"
           },
           {
@@ -1038,4 +1443,4 @@
       }
     }
   ]
-}
+};

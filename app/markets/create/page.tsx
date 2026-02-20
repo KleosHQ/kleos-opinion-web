@@ -33,6 +33,7 @@ export default function CreateMarketPage() {
   const { wallets } = useWallets()
   const { client } = useSolanaClient()
   const [protocol, setProtocol] = useState<any>(null)
+  const [onchainAdmin, setOnchainAdmin] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
@@ -49,16 +50,29 @@ export default function CreateMarketPage() {
       try {
         const response = await protocolApi.get()
         setProtocol(response.data)
+        setOnchainAdmin(response.data?.adminAuthority ?? null)
       } catch (error: any) {
-        if (error?.response?.status === 404) setProtocol(null)
-        else {
+        if (error?.response?.status === 404) {
+          setProtocol(null)
+          setOnchainAdmin(null)
+        } else {
           console.error('Error fetching protocol:', error)
           setProtocol(null)
+          setOnchainAdmin(null)
         }
       }
     }
     if (ready) fetchProtocol()
   }, [ready])
+
+  const isAdmin = !!walletAddress && !!onchainAdmin && walletAddress === onchainAdmin
+
+  useEffect(() => {
+    if (!ready || !authenticated || !walletAddress) return
+    if (onchainAdmin === null) return
+    if (isAdmin) return
+    router.replace('/')
+  }, [ready, authenticated, walletAddress, onchainAdmin, isAdmin, router])
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
@@ -182,15 +196,27 @@ export default function CreateMarketPage() {
     )
   }
 
+  if (onchainAdmin === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Verifying access…</p>
+      </div>
+    )
+  }
+
+  if (!isAdmin) {
+    return null
+  }
+
   return (
     <main className="min-h-screen">
       <div className="max-w-6xl mx-auto px-6 py-10">
-        <header className="flex flex-wrap items-center justify-between gap-6 mb-12 pb-8 border-b border-border">
+        <header className="flex items-center justify-between gap-6 mb-12 pb-8 border-b border-border min-h-[52px]">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Create Market</h1>
             <p className="text-muted-foreground mt-1 text-sm">Add a new prediction market</p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-shrink-0 flex-nowrap">
             <WalletScoreBadge wallet={walletAddress} />
             <div className="px-4 py-2 rounded-lg border bg-card font-mono text-sm">
               {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}

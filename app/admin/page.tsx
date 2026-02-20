@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { PublicKey } from '@solana/web3.js'
+import { PublicKey, Transaction } from '@solana/web3.js'
+import { useWallets } from '@privy-io/react-auth/solana'
+import bs58 from 'bs58'
 import Link from 'next/link'
 import { marketsApi, protocolApi } from '@/lib/api'
 import { useSolanaClient } from '@/lib/solana/useSolanaClient'
@@ -10,10 +12,12 @@ import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
 import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 import { InitializeProtocolModal } from '@/components/InitializeProtocolModal'
 import { CreateMarketModal } from '@/components/CreateMarketModal'
+import { ErrorsReference } from '@/components/ErrorsReference'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from '@/lib/utils/toast'
 
 interface Protocol {
   id: string
@@ -27,6 +31,7 @@ interface Protocol {
 export default function AdminPage() {
   const { connectSolanaWallet, connecting, ready, authenticated } = useSolanaLogin()
   const { address: walletAddress, isConnected: isSolanaConnected, publicKey } = useSolanaWallet()
+  const { wallets } = useWallets()
   const router = useRouter()
   const { client, connection } = useSolanaClient()
   
@@ -63,61 +68,98 @@ export default function AdminPage() {
 
   const handleInitializeSuccess = () => fetchProtocol()
 
+  const solanaWallet = wallets.find(w => w.address && !w.address.startsWith('0x') && w.address === walletAddress)
+
   const handleOpenMarket = async (marketId: string) => {
-    if (!authenticated || !walletAddress || !publicKey || !protocol || protocol.adminAuthority !== walletAddress) {
-      alert('Unauthorized')
+    if (!authenticated || !walletAddress || !publicKey || !protocol || protocol.adminAuthority !== walletAddress || !solanaWallet) {
+      toast.error('Unauthorized or wallet not found')
       return
     }
     setSendingTx(true)
     try {
+      const { getMarketPda } = await import('@/lib/solana/client')
+      const [marketPda] = await getMarketPda(BigInt(marketId))
+      const transaction = await client.openMarket(publicKey, marketPda)
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+      if (transaction instanceof Transaction) {
+        transaction.recentBlockhash = blockhash
+        transaction.feePayer = publicKey
+      }
+      const signResult = await solanaWallet.signAndSendTransaction({
+        transaction: transaction instanceof Transaction ? transaction.serialize({ requireAllSignatures: false, verifySignatures: false }) : transaction,
+        chain: 'solana:devnet',
+      })
+      const sigValue = typeof signResult === 'string' ? signResult : signResult.signature
+      const signature = typeof sigValue === 'string' ? sigValue : bs58.encode(sigValue)
+      await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
       await marketsApi.open(marketId, { adminAuthority: walletAddress })
-      const admin = publicKey
-      const market = new PublicKey(marketId)
-      const transaction = await client.openMarket(admin, market)
-      const { blockhash } = await connection.getLatestBlockhash()
-      transaction.recentBlockhash = blockhash
-      transaction.feePayer = admin
-      alert('Open market transaction created. Sign with your wallet to complete.')
+      toast.success('Market opened successfully!')
     } catch (error: any) {
-      alert(error.message || 'Failed to open market')
+      toast.fromApiOrProgramError(error, 'Failed to open market')
     } finally {
       setSendingTx(false)
     }
   }
 
   const handleCloseMarket = async (marketId: string) => {
+    if (!publicKey || !solanaWallet) {
+      toast.error('Wallet not found')
+      return
+    }
     setSendingTx(true)
     try {
+      const { getMarketPda } = await import('@/lib/solana/client')
+      const [marketPda] = await getMarketPda(BigInt(marketId))
+      const transaction = await client.closeMarket(publicKey, marketPda)
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+      if (transaction instanceof Transaction) {
+        transaction.recentBlockhash = blockhash
+        transaction.feePayer = publicKey
+      }
+      const signResult = await solanaWallet.signAndSendTransaction({
+        transaction: transaction instanceof Transaction ? transaction.serialize({ requireAllSignatures: false, verifySignatures: false }) : transaction,
+        chain: 'solana:devnet',
+      })
+      const sigValue = typeof signResult === 'string' ? signResult : signResult.signature
+      const signature = typeof sigValue === 'string' ? sigValue : bs58.encode(sigValue)
+      await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
       await marketsApi.close(marketId)
-      const market = new PublicKey(marketId)
-      const transaction = await client.closeMarket(market)
-      const { blockhash } = await connection.getLatestBlockhash()
-      transaction.recentBlockhash = blockhash
-      alert('Close market transaction created. Sign with your wallet to complete.')
+      toast.success('Market closed successfully!')
     } catch (error: any) {
-      alert(error.message || 'Failed to close market')
+      toast.fromApiOrProgramError(error, 'Failed to close market')
     } finally {
       setSendingTx(false)
     }
   }
 
-  const handleSettleMarket = async (marketId: string, tokenMint: string) => {
-    if (!protocol) {
-      alert('Protocol not found')
+  const handleSettleMarket = async (marketId: string, tokenMint: string, winningItemIndex: number) => {
+    if (!protocol || !publicKey || !solanaWallet) {
+      toast.error('Protocol or wallet not found')
       return
     }
     setSendingTx(true)
     try {
-      await marketsApi.settle(marketId, { winningItemIndex: 0 })
-      const market = new PublicKey(marketId)
+      const { getMarketPda } = await import('@/lib/solana/client')
+      const [marketPda] = await getMarketPda(BigInt(marketId))
       const mint = new PublicKey(tokenMint)
       const treasury = new PublicKey(protocol.treasury)
-      const transaction = await client.settleMarket(market, mint, treasury)
-      const { blockhash } = await connection.getLatestBlockhash()
-      transaction.recentBlockhash = blockhash
-      alert('Settle market transaction created. Sign with your wallet to complete.')
+      const transaction = await client.settleMarket(publicKey, marketPda, mint, treasury)
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+      if (transaction instanceof Transaction) {
+        transaction.recentBlockhash = blockhash
+        transaction.feePayer = publicKey
+      }
+      const signResult = await solanaWallet.signAndSendTransaction({
+        transaction: transaction instanceof Transaction ? transaction.serialize({ requireAllSignatures: false, verifySignatures: false }) : transaction,
+        chain: 'solana:devnet',
+      })
+      const sigValue = typeof signResult === 'string' ? signResult : signResult.signature
+      const signature = typeof sigValue === 'string' ? sigValue : bs58.encode(sigValue)
+      await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
+      await marketsApi.settle(marketId, { winningItemIndex })
+      toast.success('Market settled successfully!')
     } catch (error: any) {
-      alert(error.message || 'Failed to settle market')
+      toast.fromApiOrProgramError(error, 'Failed to settle market')
     } finally {
       setSendingTx(false)
     }
@@ -125,7 +167,7 @@ export default function AdminPage() {
 
   const handleUpdateProtocol = async () => {
     if (!authenticated || !walletAddress || !publicKey || !protocol || protocol.adminAuthority !== walletAddress) {
-      alert('Unauthorized')
+      toast.error('Unauthorized')
       return
     }
     const feeBps = prompt('Enter new protocol fee (bps):', protocol.protocolFeeBps.toString())
@@ -151,10 +193,10 @@ export default function AdminPage() {
       const { blockhash } = await connection.getLatestBlockhash()
       transaction.recentBlockhash = blockhash
       transaction.feePayer = admin
-      alert('Update protocol transaction created. Sign with your wallet to complete.')
+      toast.success('Update protocol transaction ready', 'Sign with your wallet to complete.')
       fetchProtocol()
     } catch (error: any) {
-      alert(error.message || 'Failed to update protocol')
+      toast.fromApiOrProgramError(error, 'Failed to update protocol')
     } finally {
       setSendingTx(false)
     }
@@ -290,6 +332,10 @@ export default function AdminPage() {
             </Button>
           </CardContent>
         </Card>
+
+        <div className="mt-6">
+          <ErrorsReference />
+        </div>
 
         <InitializeProtocolModal
           isOpen={showInitModal}

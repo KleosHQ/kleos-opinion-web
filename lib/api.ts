@@ -30,7 +30,7 @@ export const marketsApi = {
   create: (data: { categoryId?: string; title?: string; startTs: string; endTs: string; itemsHash: string; itemCount: number; items: string[]; tokenMint: string; adminAuthority: string }) =>
     api.post('/markets', data),
   
-  update: (marketId: string, data: { categoryId?: string; startTs?: string; endTs?: string; itemsHash?: string; itemCount?: number; adminAuthority: string }) =>
+  update: (marketId: string, data: { categoryId?: string; startTs?: string; endTs?: string; itemsHash?: string; itemCount?: number; items?: string[]; adminAuthority: string }) =>
     api.put(`/markets/${marketId}`, data),
   
   open: (marketId: string, data: { adminAuthority: string }) =>
@@ -53,6 +53,19 @@ export const positionsApi = {
   
   create: (data: { marketId: string; user: string; selectedItemIndex: number; rawStake: string; effectiveStake: string }) =>
     api.post('/positions', data),
+
+  confirm: (data: {
+    signature: string
+    marketId: string
+    user: string
+    selectedItemIndex: number
+    rawStake: string
+    effectiveStake: string
+    dbMarketId: string
+    breakdown?: { reputation: number; timing: number; streak: number; fairscore: number }
+    marketStartTs?: number
+    marketEndTs?: number
+  }) => api.post('/positions/confirm', data),
   
   getByMarket: (marketId: string) => api.get(`/positions/market/${marketId}`),
   

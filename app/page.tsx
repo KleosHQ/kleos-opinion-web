@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { marketsApi, protocolApi } from '@/lib/api'
 import { WalletScoreBadge } from '@/components/WalletScoreBadge'
 import { StreakIndicator } from '@/components/StreakIndicator'
-import { SwipeMarketCard } from '@/components/SwipeMarketCard'
 import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
 import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 import { Button } from '@/components/ui/button'
@@ -36,8 +35,7 @@ export default function Home() {
   const { address: walletAddress, isConnected: isSolanaConnected } = useSolanaWallet()
   const [markets, setMarkets] = useState<Market[]>([])
   const [loading, setLoading] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'Open' | 'Closed' | 'Settled'>('Open')
-  const [viewMode, setViewMode] = useState<'grid' | 'stack'>('grid')
+  const [filter, setFilter] = useState<'all' | 'Draft' | 'Open' | 'Closed' | 'Settled'>('all')
   const [onchainAdmin, setOnchainAdmin] = useState<string | null>(null)
   const fetchingRef = useRef(false)
   const lastFilterRef = useRef<string | null>(null)
@@ -56,20 +54,24 @@ export default function Home() {
 
   const isAdmin = !!walletAddress && !!onchainAdmin && walletAddress === onchainAdmin
 
+  // Normal users: Open only. Admin: all markets with filter.
+  const effectiveFilter = isAdmin ? filter : 'Open'
+
   useEffect(() => {
     if (!ready) return
     if (fetchingRef.current) return
 
     fetchingRef.current = true
-    lastFilterRef.current = filter
+    lastFilterRef.current = effectiveFilter
     hasInitializedRef.current = true
 
     const fetchMarkets = async () => {
       setLoading(true)
       try {
-        const params: Record<string, string> = filter === 'all' ? {} : { status: filter }
+        const params: Record<string, string> = effectiveFilter === 'all' ? {} : { status: effectiveFilter }
         if (walletAddress) params.wallet = walletAddress
         const response = await marketsApi.getAll(params)
+        console.log('[Markets] Fetched on reload:', response.data)
         setMarkets(response.data)
       } catch (error) {
         console.error('Error fetching markets:', error)
@@ -80,7 +82,7 @@ export default function Home() {
     }
 
     fetchMarkets()
-  }, [ready, filter, walletAddress])
+  }, [ready, effectiveFilter, walletAddress, isAdmin])
 
   const formatTimestamp = (ts: string) => {
     const timestamp = Number(ts) * 1000
@@ -116,138 +118,92 @@ export default function Home() {
 
   return (
     <main className="min-h-screen">
-      <div className="max-w-6xl mx-auto px-6 py-10">
-        <header className="flex flex-wrap items-center justify-between gap-6 mb-12 pb-8 border-b border-border">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Kleos</h1>
-            <p className="text-muted-foreground mt-1 text-sm">Signal game — express conviction, build credibility</p>
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <header className="flex items-center justify-between gap-4 mb-10 pb-6 border-b border-border min-h-[52px]">
+          <div className="flex-shrink-0">
+            <h1 className="text-2xl font-bold tracking-tight">Kleos</h1>
+            <p className="text-muted-foreground text-sm">Signal game — express conviction, build credibility</p>
           </div>
-          {isSolanaConnected && walletAddress ? (
-            <div className="flex items-center gap-3 flex-wrap">
-              <StreakIndicator wallet={walletAddress} />
-              <WalletScoreBadge wallet={walletAddress} />
-              <div className="px-4 py-2 rounded-lg border bg-card text-card-foreground font-mono text-sm">
-                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-              </div>
-              <Button variant="ghost" asChild>
-                <Link href="/positions">Positions</Link>
+          <div className="flex items-center gap-2 flex-shrink-0 flex-nowrap overflow-x-auto">
+            {isSolanaConnected && walletAddress ? (
+              <>
+                <StreakIndicator wallet={walletAddress} />
+                <WalletScoreBadge wallet={walletAddress} />
+                <span className="hidden sm:inline px-3 py-1.5 rounded-md border bg-card font-mono text-xs">
+                  {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
+                </span>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/positions">Positions</Link>
+                </Button>
+                {isAdmin && (
+                  <>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href="/admin">Admin</Link>
+                    </Button>
+                    <Button size="sm" asChild>
+                      <Link href="/markets/create">Create Market</Link>
+                    </Button>
+                  </>
+                )}
+                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={logout}>
+                  Disconnect
+                </Button>
+              </>
+            ) : authenticated && !isSolanaConnected ? (
+              <>
+                <Alert variant="destructive" className="py-1.5 px-2">
+                  <AlertDescription className="text-xs">Connect Solana</AlertDescription>
+                </Alert>
+                <Button variant="ghost" size="sm" onClick={logout}>
+                  Disconnect
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" onClick={connectSolanaWallet} disabled={connecting || !ready}>
+                {connecting ? 'Connecting…' : 'Connect Solana'}
               </Button>
-              {isAdmin && (
-                <>
-                  <Button variant="ghost" asChild>
-                    <Link href="/admin">Admin</Link>
-                  </Button>
-                  <Button asChild>
-                    <Link href="/markets/create">Create Market</Link>
-                  </Button>
-                </>
-              )}
-              <Button variant="ghost" className="text-muted-foreground" onClick={logout}>
-                Disconnect
-              </Button>
-            </div>
-          ) : authenticated && !isSolanaConnected ? (
-            <div className="flex flex-col items-end gap-2">
-              <Alert variant="destructive" className="py-2">
-                <AlertDescription>Connect a Solana wallet</AlertDescription>
-              </Alert>
-              <Button variant="ghost" onClick={logout}>
-                Disconnect & connect Solana
-              </Button>
-            </div>
-          ) : (
-            <Button onClick={connectSolanaWallet} disabled={connecting || !ready}>
-              {connecting ? 'Connecting...' : 'Connect Solana'}
-            </Button>
-          )}
+            )}
+          </div>
         </header>
 
-        <div className="flex flex-wrap items-center gap-4 mb-8">
-          <div className="flex gap-2">
-            {(['all', 'Open', 'Closed', 'Settled'] as const).map((status) => (
-            <Button
-              key={status}
-              variant={filter === status ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setFilter(status)}
-              className={cn(
-                filter === status && 'border-border'
-              )}
-            >
-              {status === 'all' ? 'All' : status}
-            </Button>
-          ))}
+        {isAdmin && (
+          <div className="flex gap-2 mb-6">
+            {(['all', 'Draft', 'Open', 'Closed', 'Settled'] as const).map((status) => (
+              <Button
+                key={status}
+                variant={filter === status ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setFilter(status)}
+                className={cn(filter === status && 'border-border')}
+              >
+                {status === 'all' ? 'All' : status}
+              </Button>
+            ))}
           </div>
-          <div className="flex gap-2 ml-auto">
-            <Button
-              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('grid')}
-            >
-              Grid
-            </Button>
-            <Button
-              variant={viewMode === 'stack' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('stack')}
-            >
-              Swipe stack
-            </Button>
-          </div>
-        </div>
+        )}
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[1, 2, 3].map((i) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-6 w-24" />
-                  <Skeleton className="h-4 w-16" />
+                <CardHeader className="pb-2">
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-4 w-16 mt-1" />
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <Skeleton className="h-4 w-full" />
                   <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-2/3" />
                 </CardContent>
               </Card>
             ))}
           </div>
         ) : markets.length === 0 ? (
-          <div className="py-24 text-center text-muted-foreground">
-            No markets yet. Connect and create one.
-          </div>
-        ) : viewMode === 'stack' ? (
-          <div className="max-w-lg mx-auto space-y-4">
-            {markets.slice(0, 5).map((market, i) => (
-              <div
-                key={market.id}
-                className={cn(
-                  'transition-all duration-200',
-                  i > 0 && 'opacity-80 scale-[0.97] -mt-8'
-                )}
-                style={{
-                  transform: i > 0 ? `translateY(${-i * 12}px) scale(${1 - i * 0.03})` : undefined,
-                  zIndex: 10 - i,
-                }}
-              >
-                <SwipeMarketCard
-                  market={market}
-                  index={i}
-                  total={Math.min(markets.length, 5)}
-                  formatTimestamp={formatTimestamp}
-                  getPhaseBadgeVariant={getPhaseBadgeVariant}
-                  getStatusBadgeVariant={getStatusBadgeVariant}
-                />
-              </div>
-            ))}
-            {markets.length > 5 && (
-              <p className="text-center text-sm text-muted-foreground py-4">
-                +{markets.length - 5} more — switch to Grid to see all
-              </p>
-            )}
+          <div className="py-20 text-center text-muted-foreground">
+            {isAdmin ? 'No markets yet. Create one from Admin.' : 'No open markets yet.'}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {markets.map((market) => (
               <Link key={market.id} href={`/markets/${market.marketId}`}>
                 <Card className="transition-colors hover:bg-accent/50">

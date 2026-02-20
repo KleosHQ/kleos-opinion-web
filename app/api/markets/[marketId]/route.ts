@@ -3,7 +3,7 @@ import { MarketStatus } from '@prisma/client'
 import { EditMarketInput } from '@/lib/types'
 import prisma from '@/lib/prisma'
 import { serializeBigInt } from '@/lib/utils/serialize'
-import { fetchOnchainMarketById, fetchOnchainProtocol, fetchOnchainProtocolForMarket } from '@/lib/services/solanaService'
+import { fetchOnchainMarketById, fetchOnchainProtocol, fetchOnchainProtocolForMarket, fetchVaultBalance } from '@/lib/services/solanaService'
 
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com'
 
@@ -16,16 +16,48 @@ export async function GET(
     const { marketId } = await params
     console.log(`[API] Fetching market ${marketId} from on-chain`)
 
-    // Fetch market from on-chain only (no DB fallback)
-    const onchainMarket = await fetchOnchainMarketById(SOLANA_RPC_URL, marketId)
-    if (!onchainMarket) {
-      console.warn(`[API] Market ${marketId} not found on-chain`)
-      return NextResponse.json({ error: 'Market not found on-chain' }, { status: 404 })
-    }
+    let onchainMarket = await fetchOnchainMarketById(SOLANA_RPC_URL, marketId)
     
+    let dbFallbackProtocol: { adminAuthority: string; treasury: string } | null = null
+
+    if (!onchainMarket) {
+      console.warn(`[API] Market ${marketId} not found on-chain, trying DB fallback`)
+      const dbMarket = await prisma.market.findUnique({
+        where: { marketId: BigInt(marketId) },
+        include: { protocol: true, positions: true },
+      })
+      
+      if (!dbMarket) {
+        return NextResponse.json({ error: 'Market not found' }, { status: 404 })
+      }
+      onchainMarket = {
+        pda: `db-${marketId}`,
+        marketId,
+        itemsHash: dbMarket.itemsHash ?? '',
+        itemCount: dbMarket.itemCount ?? 0,
+        status: (dbMarket.status ?? 'Draft') as 'Draft' | 'Open' | 'Closed' | 'Settled',
+        startTs: dbMarket.startTs?.toString() ?? '0',
+        endTs: dbMarket.endTs?.toString() ?? '0',
+        totalRawStake: dbMarket.totalRawStake?.toString() ?? '0',
+        totalEffectiveStake: dbMarket.totalEffectiveStake ?? '0',
+        tokenMint: dbMarket.tokenMint ?? '',
+        vault: dbMarket.vault ?? '',
+        winningItemIndex: dbMarket.winningItemIndex ?? null,
+        isNative: false, // DB fallback: assume token market
+      }
+      if (dbMarket.protocol) {
+        dbFallbackProtocol = {
+          adminAuthority: dbMarket.protocol.adminAuthority,
+          treasury: dbMarket.protocol.treasury,
+        }
+      }
+      console.log(`[API] Serving market ${marketId} from DB fallback (status: ${onchainMarket.status})`)
+    }
+
+    const marketData = onchainMarket!
     console.log(`[API] Successfully fetched market ${marketId}:`, {
-      status: onchainMarket.status,
-      itemCount: onchainMarket.itemCount,
+      status: marketData.status,
+      itemCount: marketData.itemCount,
     })
 
     // Fetch protocol for admin info and sync
@@ -51,36 +83,36 @@ export async function GET(
         })
       : null
 
-    if (protocol) {
+    if (protocol && !dbFallbackProtocol) {
       const statusMap = { Draft: MarketStatus.Draft, Open: MarketStatus.Open, Closed: MarketStatus.Closed, Settled: MarketStatus.Settled } as const
       await prisma.market.upsert({
         where: { marketId: BigInt(marketId) },
         create: {
           marketId: BigInt(marketId),
           categoryId: BigInt(0),
-          itemsHash: onchainMarket.itemsHash,
-          itemCount: onchainMarket.itemCount,
-          startTs: BigInt(onchainMarket.startTs),
-          endTs: BigInt(onchainMarket.endTs),
-          status: statusMap[onchainMarket.status as keyof typeof statusMap] ?? MarketStatus.Draft,
-          totalRawStake: BigInt(onchainMarket.totalRawStake),
-          totalEffectiveStake: onchainMarket.totalEffectiveStake,
-          tokenMint: onchainMarket.tokenMint,
-          vault: onchainMarket.vault,
-          protocolId: protocol.id,
-          winningItemIndex: onchainMarket.winningItemIndex ?? null,
+        itemsHash: marketData.itemsHash,
+        itemCount: marketData.itemCount,
+        startTs: BigInt(marketData.startTs),
+        endTs: BigInt(marketData.endTs),
+        status: statusMap[marketData.status as keyof typeof statusMap] ?? MarketStatus.Draft,
+        totalRawStake: BigInt(marketData.totalRawStake),
+        totalEffectiveStake: marketData.totalEffectiveStake,
+        tokenMint: marketData.tokenMint,
+        vault: marketData.vault,
+        protocolId: protocol.id,
+        winningItemIndex: marketData.winningItemIndex ?? null,
         },
         update: {
-          itemsHash: onchainMarket.itemsHash,
-          itemCount: onchainMarket.itemCount,
-          startTs: BigInt(onchainMarket.startTs),
-          endTs: BigInt(onchainMarket.endTs),
-          status: statusMap[onchainMarket.status as keyof typeof statusMap] ?? MarketStatus.Draft,
-          totalRawStake: BigInt(onchainMarket.totalRawStake),
-          totalEffectiveStake: onchainMarket.totalEffectiveStake,
-          tokenMint: onchainMarket.tokenMint,
-          vault: onchainMarket.vault,
-          winningItemIndex: onchainMarket.winningItemIndex ?? undefined,
+          itemsHash: marketData.itemsHash,
+          itemCount: marketData.itemCount,
+          startTs: BigInt(marketData.startTs),
+          endTs: BigInt(marketData.endTs),
+          status: statusMap[marketData.status as keyof typeof statusMap] ?? MarketStatus.Draft,
+          totalRawStake: BigInt(marketData.totalRawStake),
+          totalEffectiveStake: marketData.totalEffectiveStake,
+          tokenMint: marketData.tokenMint,
+          vault: marketData.vault,
+          winningItemIndex: marketData.winningItemIndex ?? undefined,
         },
       })
     }
@@ -118,8 +150,8 @@ export async function GET(
       where: { marketId: BigInt(marketId) },
       select: { id: true, title: true, items: true, participationCount: true },
     })
-    const startTs = Number(onchainMarket.startTs)
-    const endTs = Number(onchainMarket.endTs)
+    const startTs = Number(marketData.startTs)
+    const endTs = Number(marketData.endTs)
     const now = Math.floor(Date.now() / 1000)
     const duration = endTs - startTs
     const t = duration > 0 && now >= startTs ? (now - startTs) / duration : 0
@@ -133,30 +165,37 @@ export async function GET(
       userPlayed = !!pos
     }
 
+    // Prefer real on-chain vault balance over market account totalRawStake
+    let totalRawStake = marketData.totalRawStake
+    if (marketData.vault && !dbFallbackProtocol) {
+      const vaultBal = await fetchVaultBalance(SOLANA_RPC_URL, marketData.vault)
+      if (vaultBal != null) totalRawStake = vaultBal
+    }
+
     const market = {
-      id: onchainMarket.pda,
-      marketId: onchainMarket.marketId,
+      id: marketData.pda,
+      marketId: marketData.marketId,
       title: dbMarket?.title ?? null,
       items: dbMarket?.items ?? null, // Rigid mapping: items[i] = option at index i
-      itemCount: onchainMarket.itemCount,
-      status: onchainMarket.status,
-      startTs: onchainMarket.startTs,
-      endTs: onchainMarket.endTs,
-      totalRawStake: onchainMarket.totalRawStake,
-      totalEffectiveStake: onchainMarket.totalEffectiveStake,
+      itemCount: marketData.itemCount,
+      status: marketData.status,
+      startTs: marketData.startTs,
+      endTs: marketData.endTs,
+      totalRawStake,
+      totalEffectiveStake: marketData.totalEffectiveStake,
       positionsCount: positions.length,
       participationCount: dbMarket?.participationCount ?? positions.length,
       phase,
       userPlayed,
-      winningItemIndex: onchainMarket.winningItemIndex,
-      itemsHash: onchainMarket.itemsHash,
-      tokenMint: onchainMarket.tokenMint,
-      vault: onchainMarket.vault,
+      winningItemIndex: marketData.winningItemIndex,
+      itemsHash: marketData.itemsHash,
+      tokenMint: marketData.tokenMint,
+      vault: marketData.vault,
+      isNative: marketData.isNative ?? false,
       positions,
-      protocol: onchainProtocol ? {
-        adminAuthority: onchainProtocol.adminAuthority,
-        treasury: onchainProtocol.treasury,
-      } : null,
+      protocol: onchainProtocol
+        ? { adminAuthority: onchainProtocol.adminAuthority, treasury: onchainProtocol.treasury }
+        : dbFallbackProtocol,
     }
 
     return NextResponse.json(market)
@@ -174,7 +213,7 @@ export async function PUT(
   try {
     const { marketId } = await params
     const body = await request.json()
-    const { categoryId, startTs, endTs, itemsHash, itemCount, adminAuthority }: EditMarketInput & { adminAuthority: string } = body
+    const { categoryId, startTs, endTs, itemsHash, itemCount, items, adminAuthority }: EditMarketInput & { adminAuthority: string; items?: string[] } = body
 
     const market = await prisma.market.findUnique({
       where: { marketId: BigInt(marketId) },
@@ -213,6 +252,7 @@ export async function PUT(
     if (startTs !== undefined) updateData.startTs = BigInt(startTs)
     if (endTs !== undefined) updateData.endTs = BigInt(endTs)
     if (itemsHash !== undefined) updateData.itemsHash = itemsHash
+    if (items !== undefined) updateData.items = items
     if (itemCount !== undefined) {
       if (itemCount <= 1 || itemCount > 255) {
         return NextResponse.json({ error: 'itemCount must be between 2 and 255' }, { status: 400 })

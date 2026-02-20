@@ -10,6 +10,8 @@ import {
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
+  getAddressDecoder,
+  getAddressEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getProgramDerivedAddress,
@@ -74,15 +76,20 @@ export type InitializeProtocolInstruction<
 export type InitializeProtocolInstructionData = {
   discriminator: ReadonlyUint8Array;
   protocolFeeBps: number;
+  treasury: Address;
 };
 
-export type InitializeProtocolInstructionDataArgs = { protocolFeeBps: number };
+export type InitializeProtocolInstructionDataArgs = {
+  protocolFeeBps: number;
+  treasury: Address;
+};
 
 export function getInitializeProtocolInstructionDataEncoder(): FixedSizeEncoder<InitializeProtocolInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
       ["protocolFeeBps", getU16Encoder()],
+      ["treasury", getAddressEncoder()],
     ]),
     (value) => ({ ...value, discriminator: INITIALIZE_PROTOCOL_DISCRIMINATOR }),
   );
@@ -92,6 +99,7 @@ export function getInitializeProtocolInstructionDataDecoder(): FixedSizeDecoder<
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["protocolFeeBps", getU16Decoder()],
+    ["treasury", getAddressDecoder()],
   ]);
 }
 
@@ -114,6 +122,7 @@ export type InitializeProtocolAsyncInput<
   protocol?: Address<TAccountProtocol>;
   systemProgram?: Address<TAccountSystemProgram>;
   protocolFeeBps: InitializeProtocolInstructionDataArgs["protocolFeeBps"];
+  treasury: InitializeProtocolInstructionDataArgs["treasury"];
 };
 
 export async function getInitializeProtocolInstructionAsync<
@@ -198,6 +207,7 @@ export type InitializeProtocolInput<
   protocol: Address<TAccountProtocol>;
   systemProgram?: Address<TAccountSystemProgram>;
   protocolFeeBps: InitializeProtocolInstructionDataArgs["protocolFeeBps"];
+  treasury: InitializeProtocolInstructionDataArgs["treasury"];
 };
 
 export function getInitializeProtocolInstruction<

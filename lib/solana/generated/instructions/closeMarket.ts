@@ -16,6 +16,7 @@ import {
   getStructEncoder,
   transformEncoder,
   type AccountMeta,
+  type AccountSignerMeta,
   type Address,
   type FixedSizeCodec,
   type FixedSizeDecoder,
@@ -23,7 +24,10 @@ import {
   type Instruction,
   type InstructionWithAccounts,
   type InstructionWithData,
+  type ReadonlyAccount,
+  type ReadonlySignerAccount,
   type ReadonlyUint8Array,
+  type TransactionSigner,
   type WritableAccount,
 } from "@solana/kit";
 import { KLEOS_PROTOCOL_PROGRAM_ADDRESS } from "../programs";
@@ -41,15 +45,25 @@ export function getCloseMarketDiscriminatorBytes() {
 
 export type CloseMarketInstruction<
   TProgram extends string = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
+  TAccountSigner extends string | AccountMeta<string> = string,
   TAccountMarket extends string | AccountMeta<string> = string,
+  TAccountSystemProgram extends string | AccountMeta<string> =
+    "11111111111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
+      TAccountSigner extends string
+        ? ReadonlySignerAccount<TAccountSigner> &
+            AccountSignerMeta<TAccountSigner>
+        : TAccountSigner,
       TAccountMarket extends string
         ? WritableAccount<TAccountMarket>
         : TAccountMarket,
+      TAccountSystemProgram extends string
+        ? ReadonlyAccount<TAccountSystemProgram>
+        : TAccountSystemProgram,
       ...TRemainingAccounts,
     ]
   >;
@@ -81,36 +95,70 @@ export function getCloseMarketInstructionDataCodec(): FixedSizeCodec<
   );
 }
 
-export type CloseMarketInput<TAccountMarket extends string = string> = {
+export type CloseMarketInput<
+  TAccountSigner extends string = string,
+  TAccountMarket extends string = string,
+  TAccountSystemProgram extends string = string,
+> = {
+  signer: TransactionSigner<TAccountSigner>;
   market: Address<TAccountMarket>;
+  systemProgram?: Address<TAccountSystemProgram>;
 };
 
 export function getCloseMarketInstruction<
+  TAccountSigner extends string,
   TAccountMarket extends string,
+  TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
 >(
-  input: CloseMarketInput<TAccountMarket>,
+  input: CloseMarketInput<
+    TAccountSigner,
+    TAccountMarket,
+    TAccountSystemProgram
+  >,
   config?: { programAddress?: TProgramAddress },
-): CloseMarketInstruction<TProgramAddress, TAccountMarket> {
+): CloseMarketInstruction<
+  TProgramAddress,
+  TAccountSigner,
+  TAccountMarket,
+  TAccountSystemProgram
+> {
   // Program address.
   const programAddress =
     config?.programAddress ?? KLEOS_PROTOCOL_PROGRAM_ADDRESS;
 
   // Original accounts.
   const originalAccounts = {
+    signer: { value: input.signer ?? null, isWritable: false },
     market: { value: input.market ?? null, isWritable: true },
+    systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedAccount
   >;
 
+  // Resolve default values.
+  if (!accounts.systemProgram.value) {
+    accounts.systemProgram.value =
+      "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
+  }
+
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
-    accounts: [getAccountMeta(accounts.market)],
+    accounts: [
+      getAccountMeta(accounts.signer),
+      getAccountMeta(accounts.market),
+      getAccountMeta(accounts.systemProgram),
+    ],
     data: getCloseMarketInstructionDataEncoder().encode({}),
     programAddress,
-  } as CloseMarketInstruction<TProgramAddress, TAccountMarket>);
+  } as CloseMarketInstruction<
+    TProgramAddress,
+    TAccountSigner,
+    TAccountMarket,
+    TAccountSystemProgram
+  >);
 }
 
 export type ParsedCloseMarketInstruction<
@@ -119,7 +167,9 @@ export type ParsedCloseMarketInstruction<
 > = {
   programAddress: Address<TProgram>;
   accounts: {
-    market: TAccountMetas[0];
+    signer: TAccountMetas[0];
+    market: TAccountMetas[1];
+    systemProgram: TAccountMetas[2];
   };
   data: CloseMarketInstructionData;
 };
@@ -132,7 +182,7 @@ export function parseCloseMarketInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedCloseMarketInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 1) {
+  if (instruction.accounts.length < 3) {
     // TODO: Coded error.
     throw new Error("Not enough accounts");
   }
@@ -144,7 +194,11 @@ export function parseCloseMarketInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { market: getNextAccount() },
+    accounts: {
+      signer: getNextAccount(),
+      market: getNextAccount(),
+      systemProgram: getNextAccount(),
+    },
     data: getCloseMarketInstructionDataDecoder().decode(instruction.data),
   };
 }

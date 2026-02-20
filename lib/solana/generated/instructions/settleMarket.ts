@@ -18,6 +18,7 @@ import {
   getStructEncoder,
   transformEncoder,
   type AccountMeta,
+  type AccountSignerMeta,
   type Address,
   type FixedSizeCodec,
   type FixedSizeDecoder,
@@ -26,7 +27,9 @@ import {
   type InstructionWithAccounts,
   type InstructionWithData,
   type ReadonlyAccount,
+  type ReadonlySignerAccount,
   type ReadonlyUint8Array,
+  type TransactionSigner,
   type WritableAccount,
 } from "@solana/kit";
 import { KLEOS_PROTOCOL_PROGRAM_ADDRESS } from "../programs";
@@ -48,6 +51,7 @@ export function getSettleMarketDiscriminatorBytes() {
 
 export type SettleMarketInstruction<
   TProgram extends string = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
+  TAccountSigner extends string | AccountMeta<string> = string,
   TAccountProtocol extends string | AccountMeta<string> = string,
   TAccountMarket extends string | AccountMeta<string> = string,
   TAccountVaultAuthority extends string | AccountMeta<string> = string,
@@ -55,11 +59,17 @@ export type SettleMarketInstruction<
   TAccountTreasuryTokenAccount extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  TAccountSystemProgram extends string | AccountMeta<string> =
+    "11111111111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
+      TAccountSigner extends string
+        ? ReadonlySignerAccount<TAccountSigner> &
+            AccountSignerMeta<TAccountSigner>
+        : TAccountSigner,
       TAccountProtocol extends string
         ? ReadonlyAccount<TAccountProtocol>
         : TAccountProtocol,
@@ -78,6 +88,9 @@ export type SettleMarketInstruction<
       TAccountTokenProgram extends string
         ? ReadonlyAccount<TAccountTokenProgram>
         : TAccountTokenProgram,
+      TAccountSystemProgram extends string
+        ? ReadonlyAccount<TAccountSystemProgram>
+        : TAccountSystemProgram,
       ...TRemainingAccounts,
     ]
   >;
@@ -110,48 +123,58 @@ export function getSettleMarketInstructionDataCodec(): FixedSizeCodec<
 }
 
 export type SettleMarketAsyncInput<
+  TAccountSigner extends string = string,
   TAccountProtocol extends string = string,
   TAccountMarket extends string = string,
   TAccountVaultAuthority extends string = string,
   TAccountVault extends string = string,
   TAccountTreasuryTokenAccount extends string = string,
   TAccountTokenProgram extends string = string,
+  TAccountSystemProgram extends string = string,
 > = {
+  signer: TransactionSigner<TAccountSigner>;
   protocol?: Address<TAccountProtocol>;
   market: Address<TAccountMarket>;
   vaultAuthority?: Address<TAccountVaultAuthority>;
   vault: Address<TAccountVault>;
   treasuryTokenAccount: Address<TAccountTreasuryTokenAccount>;
   tokenProgram?: Address<TAccountTokenProgram>;
+  systemProgram?: Address<TAccountSystemProgram>;
 };
 
 export async function getSettleMarketInstructionAsync<
+  TAccountSigner extends string,
   TAccountProtocol extends string,
   TAccountMarket extends string,
   TAccountVaultAuthority extends string,
   TAccountVault extends string,
   TAccountTreasuryTokenAccount extends string,
   TAccountTokenProgram extends string,
+  TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
 >(
   input: SettleMarketAsyncInput<
+    TAccountSigner,
     TAccountProtocol,
     TAccountMarket,
     TAccountVaultAuthority,
     TAccountVault,
     TAccountTreasuryTokenAccount,
-    TAccountTokenProgram
+    TAccountTokenProgram,
+    TAccountSystemProgram
   >,
   config?: { programAddress?: TProgramAddress },
 ): Promise<
   SettleMarketInstruction<
     TProgramAddress,
+    TAccountSigner,
     TAccountProtocol,
     TAccountMarket,
     TAccountVaultAuthority,
     TAccountVault,
     TAccountTreasuryTokenAccount,
-    TAccountTokenProgram
+    TAccountTokenProgram,
+    TAccountSystemProgram
   >
 > {
   // Program address.
@@ -160,6 +183,7 @@ export async function getSettleMarketInstructionAsync<
 
   // Original accounts.
   const originalAccounts = {
+    signer: { value: input.signer ?? null, isWritable: false },
     protocol: { value: input.protocol ?? null, isWritable: false },
     market: { value: input.market ?? null, isWritable: true },
     vaultAuthority: { value: input.vaultAuthority ?? null, isWritable: false },
@@ -169,6 +193,7 @@ export async function getSettleMarketInstructionAsync<
       isWritable: true,
     },
     tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
+    systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -199,72 +224,90 @@ export async function getSettleMarketInstructionAsync<
     accounts.tokenProgram.value =
       "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
   }
+  if (!accounts.systemProgram.value) {
+    accounts.systemProgram.value =
+      "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
+  }
 
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
+      getAccountMeta(accounts.signer),
       getAccountMeta(accounts.protocol),
       getAccountMeta(accounts.market),
       getAccountMeta(accounts.vaultAuthority),
       getAccountMeta(accounts.vault),
       getAccountMeta(accounts.treasuryTokenAccount),
       getAccountMeta(accounts.tokenProgram),
+      getAccountMeta(accounts.systemProgram),
     ],
     data: getSettleMarketInstructionDataEncoder().encode({}),
     programAddress,
   } as SettleMarketInstruction<
     TProgramAddress,
+    TAccountSigner,
     TAccountProtocol,
     TAccountMarket,
     TAccountVaultAuthority,
     TAccountVault,
     TAccountTreasuryTokenAccount,
-    TAccountTokenProgram
+    TAccountTokenProgram,
+    TAccountSystemProgram
   >);
 }
 
 export type SettleMarketInput<
+  TAccountSigner extends string = string,
   TAccountProtocol extends string = string,
   TAccountMarket extends string = string,
   TAccountVaultAuthority extends string = string,
   TAccountVault extends string = string,
   TAccountTreasuryTokenAccount extends string = string,
   TAccountTokenProgram extends string = string,
+  TAccountSystemProgram extends string = string,
 > = {
+  signer: TransactionSigner<TAccountSigner>;
   protocol: Address<TAccountProtocol>;
   market: Address<TAccountMarket>;
   vaultAuthority: Address<TAccountVaultAuthority>;
   vault: Address<TAccountVault>;
   treasuryTokenAccount: Address<TAccountTreasuryTokenAccount>;
   tokenProgram?: Address<TAccountTokenProgram>;
+  systemProgram?: Address<TAccountSystemProgram>;
 };
 
 export function getSettleMarketInstruction<
+  TAccountSigner extends string,
   TAccountProtocol extends string,
   TAccountMarket extends string,
   TAccountVaultAuthority extends string,
   TAccountVault extends string,
   TAccountTreasuryTokenAccount extends string,
   TAccountTokenProgram extends string,
+  TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
 >(
   input: SettleMarketInput<
+    TAccountSigner,
     TAccountProtocol,
     TAccountMarket,
     TAccountVaultAuthority,
     TAccountVault,
     TAccountTreasuryTokenAccount,
-    TAccountTokenProgram
+    TAccountTokenProgram,
+    TAccountSystemProgram
   >,
   config?: { programAddress?: TProgramAddress },
 ): SettleMarketInstruction<
   TProgramAddress,
+  TAccountSigner,
   TAccountProtocol,
   TAccountMarket,
   TAccountVaultAuthority,
   TAccountVault,
   TAccountTreasuryTokenAccount,
-  TAccountTokenProgram
+  TAccountTokenProgram,
+  TAccountSystemProgram
 > {
   // Program address.
   const programAddress =
@@ -272,6 +315,7 @@ export function getSettleMarketInstruction<
 
   // Original accounts.
   const originalAccounts = {
+    signer: { value: input.signer ?? null, isWritable: false },
     protocol: { value: input.protocol ?? null, isWritable: false },
     market: { value: input.market ?? null, isWritable: true },
     vaultAuthority: { value: input.vaultAuthority ?? null, isWritable: false },
@@ -281,6 +325,7 @@ export function getSettleMarketInstruction<
       isWritable: true,
     },
     tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
+    systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -292,27 +337,35 @@ export function getSettleMarketInstruction<
     accounts.tokenProgram.value =
       "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
   }
+  if (!accounts.systemProgram.value) {
+    accounts.systemProgram.value =
+      "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
+  }
 
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
+      getAccountMeta(accounts.signer),
       getAccountMeta(accounts.protocol),
       getAccountMeta(accounts.market),
       getAccountMeta(accounts.vaultAuthority),
       getAccountMeta(accounts.vault),
       getAccountMeta(accounts.treasuryTokenAccount),
       getAccountMeta(accounts.tokenProgram),
+      getAccountMeta(accounts.systemProgram),
     ],
     data: getSettleMarketInstructionDataEncoder().encode({}),
     programAddress,
   } as SettleMarketInstruction<
     TProgramAddress,
+    TAccountSigner,
     TAccountProtocol,
     TAccountMarket,
     TAccountVaultAuthority,
     TAccountVault,
     TAccountTreasuryTokenAccount,
-    TAccountTokenProgram
+    TAccountTokenProgram,
+    TAccountSystemProgram
   >);
 }
 
@@ -322,12 +375,14 @@ export type ParsedSettleMarketInstruction<
 > = {
   programAddress: Address<TProgram>;
   accounts: {
-    protocol: TAccountMetas[0];
-    market: TAccountMetas[1];
-    vaultAuthority: TAccountMetas[2];
-    vault: TAccountMetas[3];
-    treasuryTokenAccount: TAccountMetas[4];
-    tokenProgram: TAccountMetas[5];
+    signer: TAccountMetas[0];
+    protocol: TAccountMetas[1];
+    market: TAccountMetas[2];
+    vaultAuthority: TAccountMetas[3];
+    vault: TAccountMetas[4];
+    treasuryTokenAccount: TAccountMetas[5];
+    tokenProgram: TAccountMetas[6];
+    systemProgram: TAccountMetas[7];
   };
   data: SettleMarketInstructionData;
 };
@@ -340,7 +395,7 @@ export function parseSettleMarketInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedSettleMarketInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 6) {
+  if (instruction.accounts.length < 8) {
     // TODO: Coded error.
     throw new Error("Not enough accounts");
   }
@@ -353,12 +408,14 @@ export function parseSettleMarketInstruction<
   return {
     programAddress: instruction.programAddress,
     accounts: {
+      signer: getNextAccount(),
       protocol: getNextAccount(),
       market: getNextAccount(),
       vaultAuthority: getNextAccount(),
       vault: getNextAccount(),
       treasuryTokenAccount: getNextAccount(),
       tokenProgram: getNextAccount(),
+      systemProgram: getNextAccount(),
     },
     data: getSettleMarketInstructionDataDecoder().decode(instruction.data),
   };

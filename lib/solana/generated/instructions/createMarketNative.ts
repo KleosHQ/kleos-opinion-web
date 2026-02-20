@@ -10,6 +10,7 @@ import {
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
+  getAddressEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getI64Decoder,
@@ -36,21 +37,28 @@ import {
   type WritableSignerAccount,
 } from "@solana/kit";
 import { KLEOS_PROTOCOL_PROGRAM_ADDRESS } from "../programs";
-import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
+import {
+  expectAddress,
+  getAccountMetaFactory,
+  type ResolvedAccount,
+} from "../shared";
 
-export const EDIT_MARKET_DISCRIMINATOR = new Uint8Array([
-  77, 92, 29, 5, 217, 159, 214, 32,
+export const CREATE_MARKET_NATIVE_DISCRIMINATOR = new Uint8Array([
+  35, 110, 189, 223, 219, 138, 49, 141,
 ]);
 
-export function getEditMarketDiscriminatorBytes() {
-  return fixEncoderSize(getBytesEncoder(), 8).encode(EDIT_MARKET_DISCRIMINATOR);
+export function getCreateMarketNativeDiscriminatorBytes() {
+  return fixEncoderSize(getBytesEncoder(), 8).encode(
+    CREATE_MARKET_NATIVE_DISCRIMINATOR,
+  );
 }
 
-export type EditMarketInstruction<
+export type CreateMarketNativeInstruction<
   TProgram extends string = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
   TAccountAdminAuthority extends string | AccountMeta<string> = string,
   TAccountProtocol extends string | AccountMeta<string> = string,
   TAccountMarket extends string | AccountMeta<string> = string,
+  TAccountVaultAuthority extends string | AccountMeta<string> = string,
   TAccountSystemProgram extends string | AccountMeta<string> =
     "11111111111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
@@ -63,11 +71,14 @@ export type EditMarketInstruction<
             AccountSignerMeta<TAccountAdminAuthority>
         : TAccountAdminAuthority,
       TAccountProtocol extends string
-        ? ReadonlyAccount<TAccountProtocol>
+        ? WritableAccount<TAccountProtocol>
         : TAccountProtocol,
       TAccountMarket extends string
         ? WritableAccount<TAccountMarket>
         : TAccountMarket,
+      TAccountVaultAuthority extends string
+        ? ReadonlyAccount<TAccountVaultAuthority>
+        : TAccountVaultAuthority,
       TAccountSystemProgram extends string
         ? ReadonlyAccount<TAccountSystemProgram>
         : TAccountSystemProgram,
@@ -75,7 +86,7 @@ export type EditMarketInstruction<
     ]
   >;
 
-export type EditMarketInstructionData = {
+export type CreateMarketNativeInstructionData = {
   discriminator: ReadonlyUint8Array;
   startTs: bigint;
   endTs: bigint;
@@ -83,14 +94,14 @@ export type EditMarketInstructionData = {
   itemCount: number;
 };
 
-export type EditMarketInstructionDataArgs = {
+export type CreateMarketNativeInstructionDataArgs = {
   startTs: number | bigint;
   endTs: number | bigint;
   itemsHash: ReadonlyUint8Array;
   itemCount: number;
 };
 
-export function getEditMarketInstructionDataEncoder(): FixedSizeEncoder<EditMarketInstructionDataArgs> {
+export function getCreateMarketNativeInstructionDataEncoder(): FixedSizeEncoder<CreateMarketNativeInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
@@ -99,11 +110,14 @@ export function getEditMarketInstructionDataEncoder(): FixedSizeEncoder<EditMark
       ["itemsHash", fixEncoderSize(getBytesEncoder(), 32)],
       ["itemCount", getU8Encoder()],
     ]),
-    (value) => ({ ...value, discriminator: EDIT_MARKET_DISCRIMINATOR }),
+    (value) => ({
+      ...value,
+      discriminator: CREATE_MARKET_NATIVE_DISCRIMINATOR,
+    }),
   );
 }
 
-export function getEditMarketInstructionDataDecoder(): FixedSizeDecoder<EditMarketInstructionData> {
+export function getCreateMarketNativeInstructionDataDecoder(): FixedSizeDecoder<CreateMarketNativeInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["startTs", getI64Decoder()],
@@ -113,52 +127,57 @@ export function getEditMarketInstructionDataDecoder(): FixedSizeDecoder<EditMark
   ]);
 }
 
-export function getEditMarketInstructionDataCodec(): FixedSizeCodec<
-  EditMarketInstructionDataArgs,
-  EditMarketInstructionData
+export function getCreateMarketNativeInstructionDataCodec(): FixedSizeCodec<
+  CreateMarketNativeInstructionDataArgs,
+  CreateMarketNativeInstructionData
 > {
   return combineCodec(
-    getEditMarketInstructionDataEncoder(),
-    getEditMarketInstructionDataDecoder(),
+    getCreateMarketNativeInstructionDataEncoder(),
+    getCreateMarketNativeInstructionDataDecoder(),
   );
 }
 
-export type EditMarketAsyncInput<
+export type CreateMarketNativeAsyncInput<
   TAccountAdminAuthority extends string = string,
   TAccountProtocol extends string = string,
   TAccountMarket extends string = string,
+  TAccountVaultAuthority extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
   adminAuthority: TransactionSigner<TAccountAdminAuthority>;
   protocol?: Address<TAccountProtocol>;
   market: Address<TAccountMarket>;
+  vaultAuthority?: Address<TAccountVaultAuthority>;
   systemProgram?: Address<TAccountSystemProgram>;
-  startTs: EditMarketInstructionDataArgs["startTs"];
-  endTs: EditMarketInstructionDataArgs["endTs"];
-  itemsHash: EditMarketInstructionDataArgs["itemsHash"];
-  itemCount: EditMarketInstructionDataArgs["itemCount"];
+  startTs: CreateMarketNativeInstructionDataArgs["startTs"];
+  endTs: CreateMarketNativeInstructionDataArgs["endTs"];
+  itemsHash: CreateMarketNativeInstructionDataArgs["itemsHash"];
+  itemCount: CreateMarketNativeInstructionDataArgs["itemCount"];
 };
 
-export async function getEditMarketInstructionAsync<
+export async function getCreateMarketNativeInstructionAsync<
   TAccountAdminAuthority extends string,
   TAccountProtocol extends string,
   TAccountMarket extends string,
+  TAccountVaultAuthority extends string,
   TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
 >(
-  input: EditMarketAsyncInput<
+  input: CreateMarketNativeAsyncInput<
     TAccountAdminAuthority,
     TAccountProtocol,
     TAccountMarket,
+    TAccountVaultAuthority,
     TAccountSystemProgram
   >,
   config?: { programAddress?: TProgramAddress },
 ): Promise<
-  EditMarketInstruction<
+  CreateMarketNativeInstruction<
     TProgramAddress,
     TAccountAdminAuthority,
     TAccountProtocol,
     TAccountMarket,
+    TAccountVaultAuthority,
     TAccountSystemProgram
   >
 > {
@@ -169,8 +188,9 @@ export async function getEditMarketInstructionAsync<
   // Original accounts.
   const originalAccounts = {
     adminAuthority: { value: input.adminAuthority ?? null, isWritable: true },
-    protocol: { value: input.protocol ?? null, isWritable: false },
+    protocol: { value: input.protocol ?? null, isWritable: true },
     market: { value: input.market ?? null, isWritable: true },
+    vaultAuthority: { value: input.vaultAuthority ?? null, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
@@ -192,6 +212,15 @@ export async function getEditMarketInstructionAsync<
       ],
     });
   }
+  if (!accounts.vaultAuthority.value) {
+    accounts.vaultAuthority.value = await getProgramDerivedAddress({
+      programAddress,
+      seeds: [
+        getBytesEncoder().encode(new Uint8Array([118, 97, 117, 108, 116])),
+        getAddressEncoder().encode(expectAddress(accounts.market.value)),
+      ],
+    });
+  }
   if (!accounts.systemProgram.value) {
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
@@ -203,56 +232,63 @@ export async function getEditMarketInstructionAsync<
       getAccountMeta(accounts.adminAuthority),
       getAccountMeta(accounts.protocol),
       getAccountMeta(accounts.market),
+      getAccountMeta(accounts.vaultAuthority),
       getAccountMeta(accounts.systemProgram),
     ],
-    data: getEditMarketInstructionDataEncoder().encode(
-      args as EditMarketInstructionDataArgs,
+    data: getCreateMarketNativeInstructionDataEncoder().encode(
+      args as CreateMarketNativeInstructionDataArgs,
     ),
     programAddress,
-  } as EditMarketInstruction<
+  } as CreateMarketNativeInstruction<
     TProgramAddress,
     TAccountAdminAuthority,
     TAccountProtocol,
     TAccountMarket,
+    TAccountVaultAuthority,
     TAccountSystemProgram
   >);
 }
 
-export type EditMarketInput<
+export type CreateMarketNativeInput<
   TAccountAdminAuthority extends string = string,
   TAccountProtocol extends string = string,
   TAccountMarket extends string = string,
+  TAccountVaultAuthority extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
   adminAuthority: TransactionSigner<TAccountAdminAuthority>;
   protocol: Address<TAccountProtocol>;
   market: Address<TAccountMarket>;
+  vaultAuthority: Address<TAccountVaultAuthority>;
   systemProgram?: Address<TAccountSystemProgram>;
-  startTs: EditMarketInstructionDataArgs["startTs"];
-  endTs: EditMarketInstructionDataArgs["endTs"];
-  itemsHash: EditMarketInstructionDataArgs["itemsHash"];
-  itemCount: EditMarketInstructionDataArgs["itemCount"];
+  startTs: CreateMarketNativeInstructionDataArgs["startTs"];
+  endTs: CreateMarketNativeInstructionDataArgs["endTs"];
+  itemsHash: CreateMarketNativeInstructionDataArgs["itemsHash"];
+  itemCount: CreateMarketNativeInstructionDataArgs["itemCount"];
 };
 
-export function getEditMarketInstruction<
+export function getCreateMarketNativeInstruction<
   TAccountAdminAuthority extends string,
   TAccountProtocol extends string,
   TAccountMarket extends string,
+  TAccountVaultAuthority extends string,
   TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
 >(
-  input: EditMarketInput<
+  input: CreateMarketNativeInput<
     TAccountAdminAuthority,
     TAccountProtocol,
     TAccountMarket,
+    TAccountVaultAuthority,
     TAccountSystemProgram
   >,
   config?: { programAddress?: TProgramAddress },
-): EditMarketInstruction<
+): CreateMarketNativeInstruction<
   TProgramAddress,
   TAccountAdminAuthority,
   TAccountProtocol,
   TAccountMarket,
+  TAccountVaultAuthority,
   TAccountSystemProgram
 > {
   // Program address.
@@ -262,8 +298,9 @@ export function getEditMarketInstruction<
   // Original accounts.
   const originalAccounts = {
     adminAuthority: { value: input.adminAuthority ?? null, isWritable: true },
-    protocol: { value: input.protocol ?? null, isWritable: false },
+    protocol: { value: input.protocol ?? null, isWritable: true },
     market: { value: input.market ?? null, isWritable: true },
+    vaultAuthority: { value: input.vaultAuthority ?? null, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
@@ -286,22 +323,24 @@ export function getEditMarketInstruction<
       getAccountMeta(accounts.adminAuthority),
       getAccountMeta(accounts.protocol),
       getAccountMeta(accounts.market),
+      getAccountMeta(accounts.vaultAuthority),
       getAccountMeta(accounts.systemProgram),
     ],
-    data: getEditMarketInstructionDataEncoder().encode(
-      args as EditMarketInstructionDataArgs,
+    data: getCreateMarketNativeInstructionDataEncoder().encode(
+      args as CreateMarketNativeInstructionDataArgs,
     ),
     programAddress,
-  } as EditMarketInstruction<
+  } as CreateMarketNativeInstruction<
     TProgramAddress,
     TAccountAdminAuthority,
     TAccountProtocol,
     TAccountMarket,
+    TAccountVaultAuthority,
     TAccountSystemProgram
   >);
 }
 
-export type ParsedEditMarketInstruction<
+export type ParsedCreateMarketNativeInstruction<
   TProgram extends string = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
   TAccountMetas extends readonly AccountMeta[] = readonly AccountMeta[],
 > = {
@@ -310,20 +349,21 @@ export type ParsedEditMarketInstruction<
     adminAuthority: TAccountMetas[0];
     protocol: TAccountMetas[1];
     market: TAccountMetas[2];
-    systemProgram: TAccountMetas[3];
+    vaultAuthority: TAccountMetas[3];
+    systemProgram: TAccountMetas[4];
   };
-  data: EditMarketInstructionData;
+  data: CreateMarketNativeInstructionData;
 };
 
-export function parseEditMarketInstruction<
+export function parseCreateMarketNativeInstruction<
   TProgram extends string,
   TAccountMetas extends readonly AccountMeta[],
 >(
   instruction: Instruction<TProgram> &
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
-): ParsedEditMarketInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 4) {
+): ParsedCreateMarketNativeInstruction<TProgram, TAccountMetas> {
+  if (instruction.accounts.length < 5) {
     // TODO: Coded error.
     throw new Error("Not enough accounts");
   }
@@ -339,8 +379,11 @@ export function parseEditMarketInstruction<
       adminAuthority: getNextAccount(),
       protocol: getNextAccount(),
       market: getNextAccount(),
+      vaultAuthority: getNextAccount(),
       systemProgram: getNextAccount(),
     },
-    data: getEditMarketInstructionDataDecoder().decode(instruction.data),
+    data: getCreateMarketNativeInstructionDataDecoder().decode(
+      instruction.data,
+    ),
   };
 }

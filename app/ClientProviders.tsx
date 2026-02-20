@@ -3,6 +3,7 @@
 import './react-shim'
 import type { ReactNode } from 'react'
 import { PrivyProvider } from '@privy-io/react-auth'
+import { Toaster } from '@/components/ui/sonner'
 import { toSolanaWalletConnectors } from '@privy-io/react-auth/solana'
 import { SolanaWalletGuard } from '@/components/SolanaWalletGuard'
 
@@ -56,6 +57,7 @@ FAIRSCALE_API_KEY=...`}
       }}
     >
       <SolanaWalletGuard>{children}</SolanaWalletGuard>
+      <Toaster richColors position="bottom-right" />
     </PrivyProvider>
   )
 }

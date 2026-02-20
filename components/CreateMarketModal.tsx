@@ -13,6 +13,7 @@ import { datetimeLocalToUnix } from '@/lib/utils/datetime'
 import bs58 from 'bs58'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -23,6 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { toast } from '@/lib/utils/toast'
 import { Clock } from 'lucide-react'
 
 interface CreateMarketModalProps {
@@ -137,12 +139,15 @@ export function CreateMarketModal({ isOpen, onClose, onSuccess, protocolMarketCo
         adminAuthority: solanaWallet.address,
       })
 
+      toast.success('Market created successfully!')
       onSuccess()
       onClose()
       setFormData({ title: '', startDatetime: '', endDatetime: '', tokenMint: 'So11111111111111111111111111111111111111112', items: [], itemsHash: '' })
     } catch (err: any) {
       console.error('Error creating market:', err)
-      setError(err.message || 'Failed to create market')
+      const msg = err.response?.data?.error ?? err.message ?? 'Failed to create market'
+      setError(msg)
+      toast.fromApiOrProgramError(err, 'Failed to create market')
     } finally {
       setLoading(false)
     }
@@ -150,12 +155,12 @@ export function CreateMarketModal({ isOpen, onClose, onSuccess, protocolMarketCo
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col p-6">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Create Market</DialogTitle>
           <DialogDescription>Add a new prediction market with items and timestamps</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-1 pr-1">
           <div className="space-y-2">
             <Label htmlFor="title">Title</Label>
             <Input
@@ -262,10 +267,12 @@ export function CreateMarketModal({ isOpen, onClose, onSuccess, protocolMarketCo
           )}
           {!solanaWallet && <p className="text-sm text-destructive">Connect a Solana wallet first</p>}
         </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
+        <DialogFooter className="flex-shrink-0 border-t border-border pt-4">
+          <DialogClose asChild>
+            <Button variant="ghost" disabled={loading}>
+              Cancel
+            </Button>
+          </DialogClose>
           <Button onClick={handleCreate} disabled={loading || !solanaWallet}>
             {loading ? 'Creating...' : 'Create Market'}
           </Button>

@@ -19,6 +19,8 @@ import {
   getAddressEncoder,
   getArrayDecoder,
   getArrayEncoder,
+  getBooleanDecoder,
+  getBooleanEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getI64Decoder,
@@ -69,13 +71,14 @@ export type Market = {
   status: MarketStatus;
   totalRawStake: bigint;
   totalEffectiveStake: bigint;
-  winningItemIndex: number;
   effectiveStakePerItem: Array<bigint>;
   protocolFeeAmount: bigint;
   distributablePool: bigint;
   tokenMint: Address;
   vault: Address;
   bump: number;
+  /** When true, market uses native SOL (lamports); vault is vault_authority PDA. */
+  isNative: boolean;
 };
 
 export type MarketArgs = {
@@ -87,13 +90,14 @@ export type MarketArgs = {
   status: MarketStatusArgs;
   totalRawStake: number | bigint;
   totalEffectiveStake: number | bigint;
-  winningItemIndex: number;
   effectiveStakePerItem: Array<number | bigint>;
   protocolFeeAmount: number | bigint;
   distributablePool: number | bigint;
   tokenMint: Address;
   vault: Address;
   bump: number;
+  /** When true, market uses native SOL (lamports); vault is vault_authority PDA. */
+  isNative: boolean;
 };
 
 /** Gets the encoder for {@link MarketArgs} account data. */
@@ -109,7 +113,6 @@ export function getMarketEncoder(): FixedSizeEncoder<MarketArgs> {
       ["status", getMarketStatusEncoder()],
       ["totalRawStake", getU64Encoder()],
       ["totalEffectiveStake", getU128Encoder()],
-      ["winningItemIndex", getU8Encoder()],
       [
         "effectiveStakePerItem",
         getArrayEncoder(getU128Encoder(), { size: 10 }),
@@ -119,6 +122,7 @@ export function getMarketEncoder(): FixedSizeEncoder<MarketArgs> {
       ["tokenMint", getAddressEncoder()],
       ["vault", getAddressEncoder()],
       ["bump", getU8Encoder()],
+      ["isNative", getBooleanEncoder()],
     ]),
     (value) => ({ ...value, discriminator: MARKET_DISCRIMINATOR }),
   );
@@ -136,13 +140,13 @@ export function getMarketDecoder(): FixedSizeDecoder<Market> {
     ["status", getMarketStatusDecoder()],
     ["totalRawStake", getU64Decoder()],
     ["totalEffectiveStake", getU128Decoder()],
-    ["winningItemIndex", getU8Decoder()],
     ["effectiveStakePerItem", getArrayDecoder(getU128Decoder(), { size: 10 })],
     ["protocolFeeAmount", getU64Decoder()],
     ["distributablePool", getU64Decoder()],
     ["tokenMint", getAddressDecoder()],
     ["vault", getAddressDecoder()],
     ["bump", getU8Decoder()],
+    ["isNative", getBooleanDecoder()],
   ]);
 }
 

@@ -11,7 +11,7 @@ const SOLANA_RPC_URL =
   process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'
 
 // POST /api/positions
-// Backend computes effective stake, persists multipliers, updates streak. Never trust frontend.
+// Validates only. DB persist happens in /confirm after successful on-chain tx.
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -37,7 +37,6 @@ export async function POST(request: NextRequest) {
     if (!rawStakeNum || rawStakeNum <= 0) {
       return NextResponse.json({ error: 'rawStake must be > 0' }, { status: 400 })
     }
-    // rawStake from frontend: SOL (e.g. 0.1). Convert to lamports.
     const rawStakeLamports = Math.floor(rawStakeNum * 1e9)
 
     const onchainMarket = await fetchOnchainMarketById(SOLANA_RPC_URL, marketId)
@@ -64,7 +63,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid selectedItemIndex' }, { status: 400 })
     }
 
-    // Backend computes effective stake (never trust frontend)
     const computed = await calculateEffectiveStake({
       wallet,
       marketId,
@@ -77,9 +75,9 @@ export async function POST(request: NextRequest) {
     const effectiveStakeInt = Math.floor(computed.effectiveStake)
     const effectiveStakeForChain = effectiveStakeInt.toString()
 
-    // Validate frontend effectiveStake matches (tolerance for rounding)
     const frontendInt = parseInt(frontendEffectiveStake || '0', 10)
-    if (Math.abs(frontendInt - effectiveStakeInt) > 1) {
+    const tolerance = Math.max(1000, Math.floor(effectiveStakeInt * 0.002))
+    if (Math.abs(frontendInt - effectiveStakeInt) > tolerance) {
       return NextResponse.json({
         error: 'effectiveStake mismatch',
         expected: effectiveStakeInt,
@@ -95,13 +93,11 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Find or create DB market
     let dbMarket = await prisma.market.findUnique({
       where: { marketId: BigInt(marketId) },
     })
 
     if (!dbMarket) {
-      // Market may exist on-chain but not yet in DB; create minimal record for game layer
       const protocolRecord = await prisma.protocol.findFirst()
       if (!protocolRecord) {
         return NextResponse.json({ error: 'Protocol not in DB' }, { status: 404 })
@@ -136,32 +132,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Position already exists for this user' }, { status: 400 })
     }
 
-    const breakdown = {
-      reputation: computed.reputationMultiplier,
-      timing: computed.timingMultiplier,
-      streak: computed.streakMultiplier,
-      explanations: computed.explanations,
-    }
-
-    const { updatedStreak, user } = await createPositionWithMultipliers({
-      wallet,
-      marketId,
-      dbMarketId: dbMarket.id,
-      selectedItemIndex,
-      rawStake: BigInt(rawStakeLamports),
-      effectiveStake: effectiveStakeForChain,
-      reputationMultiplier: computed.reputationMultiplier,
-      timingMultiplier: computed.timingMultiplier,
-      streakMultiplier: computed.streakMultiplier,
-      breakdown,
-      fairscore: computed.fairscore,
-      marketStartTs: Number(onchainMarket.startTs),
-      marketEndTs: Number(onchainMarket.endTs),
-    })
-
+    // Validation only – do not persist. Frontend will call /confirm after successful on-chain tx.
     return NextResponse.json({
       success: true,
-      message: 'Position created. Sign the on-chain transaction with your wallet.',
+      message: 'Validation passed. Sign the on-chain transaction, then call /confirm with the signature.',
       position: {
         marketId: onchainMarket.marketId,
         selectedItemIndex,
@@ -169,11 +143,13 @@ export async function POST(request: NextRequest) {
         effectiveStake: effectiveStakeForChain,
       },
       effectiveStake: effectiveStakeForChain,
-      updatedStreak,
-      user: {
-        streakCurrent: user.streakCurrent,
-        streakBest: user.streakBest,
+      breakdown: {
+        reputation: computed.reputationMultiplier,
+        timing: computed.timingMultiplier,
+        streak: computed.streakMultiplier,
+        fairscore: computed.fairscore,
       },
+      dbMarketId: dbMarket.id,
     })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Failed to create position'

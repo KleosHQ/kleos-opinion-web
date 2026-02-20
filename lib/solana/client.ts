@@ -1,7 +1,7 @@
 import { Buffer } from 'buffer'
 import { Connection, PublicKey, Transaction, SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js'
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token'
-import idl from '@/idl/kleos_protocol.json'
+import idl from '@/target/idl/kleos_protocol.json'
 
 export const PROGRAM_ID = new PublicKey(idl.address)
 export const TOKEN_PROGRAM = TOKEN_PROGRAM_ID
@@ -57,6 +57,7 @@ const INSTRUCTION_DISCRIMINATORS: Record<string, Uint8Array> = {
   editMarket: new Uint8Array([77, 92, 29, 5, 217, 159, 214, 32]),
   openMarket: new Uint8Array([116, 19, 123, 75, 217, 244, 69, 44]),
   placePosition: new Uint8Array([218, 31, 90, 75, 101, 209, 5, 253]),
+  placePositionNative: new Uint8Array([118, 20, 49, 30, 199, 227, 113, 107]),
   closeMarket: new Uint8Array([88, 154, 248, 186, 48, 14, 123, 244]),
   settleMarket: new Uint8Array([193, 153, 95, 216, 166, 6, 144, 217]),
   claimPayout: new Uint8Array([127, 240, 132, 62, 227, 198, 146, 133]),
@@ -269,16 +270,24 @@ export class KleosProtocolClient {
     tokenMint: PublicKey,
     selectedItemIndex: number,
     rawStake: bigint | number,
-    effectiveStake: bigint | string
+    effectiveStake: bigint | string,
+    tokenProgram: PublicKey = TOKEN_PROGRAM_ID
   ): Promise<Transaction> {
     const [protocolPda] = await getProtocolPda()
     const [positionPda] = await getPositionPda(market, user)
     const [vaultAuthorityPda] = await getVaultAuthorityPda(market)
     const vaultPda = await getVaultPda(vaultAuthorityPda, tokenMint)
-    const userTokenAccount = await getAssociatedTokenAddress(tokenMint, user)
+    const userTokenAccount = await getAssociatedTokenAddress(
+      tokenMint,
+      user,
+      false,
+      tokenProgram,
+      ASSOCIATED_TOKEN_PROGRAM
+    )
 
     const transaction = new Transaction()
 
+    // Program creates user_token_account via init_if_needed
     const instructionData = concatBuffers([
       INSTRUCTION_DISCRIMINATORS.placePosition,
       serializeU8(selectedItemIndex),
@@ -292,9 +301,10 @@ export class KleosProtocolClient {
         { pubkey: protocolPda, isSigner: false, isWritable: false },
         { pubkey: market, isSigner: false, isWritable: true },
         { pubkey: positionPda, isSigner: false, isWritable: true },
+        { pubkey: tokenMint, isSigner: false, isWritable: false },
         { pubkey: userTokenAccount, isSigner: false, isWritable: true },
         { pubkey: vaultPda, isSigner: false, isWritable: true },
-        { pubkey: TOKEN_PROGRAM, isSigner: false, isWritable: false },
+        { pubkey: tokenProgram, isSigner: false, isWritable: false },
         { pubkey: SYSTEM_PROGRAM, isSigner: false, isWritable: false },
       ],
       programId: this.programId,
@@ -304,14 +314,35 @@ export class KleosProtocolClient {
     return transaction
   }
 
-  // Close Market
-  async closeMarket(market: PublicKey): Promise<Transaction> {
-    const transaction = new Transaction()
+  // Place Position (Native SOL – lamports, no token mint)
+  async placePositionNative(
+    user: PublicKey,
+    market: PublicKey,
+    selectedItemIndex: number,
+    rawStake: bigint | number,
+    effectiveStake: bigint | string
+  ): Promise<Transaction> {
+    const [protocolPda] = await getProtocolPda()
+    const [positionPda] = await getPositionPda(market, user)
+    const [vaultPda] = await getVaultAuthorityPda(market)
 
-    const instructionData = INSTRUCTION_DISCRIMINATORS.closeMarket
+    const transaction = new Transaction()
+    const instructionData = concatBuffers([
+      INSTRUCTION_DISCRIMINATORS.placePositionNative,
+      serializeU8(selectedItemIndex),
+      serializeU64(rawStake),
+      serializeU128(effectiveStake),
+    ])
 
     transaction.add({
-      keys: [{ pubkey: market, isSigner: false, isWritable: true }],
+      keys: [
+        { pubkey: user, isSigner: true, isWritable: true },
+        { pubkey: protocolPda, isSigner: false, isWritable: false },
+        { pubkey: market, isSigner: false, isWritable: true },
+        { pubkey: positionPda, isSigner: false, isWritable: true },
+        { pubkey: vaultPda, isSigner: false, isWritable: true },
+        { pubkey: SYSTEM_PROGRAM, isSigner: false, isWritable: false },
+      ],
       programId: this.programId,
       data: Buffer.from(instructionData),
     })
@@ -319,8 +350,28 @@ export class KleosProtocolClient {
     return transaction
   }
 
-  // Settle Market
+  // Close Market (admin/signer closes)
+  async closeMarket(admin: PublicKey, market: PublicKey): Promise<Transaction> {
+    const transaction = new Transaction()
+
+    const instructionData = INSTRUCTION_DISCRIMINATORS.closeMarket
+
+    transaction.add({
+      keys: [
+        { pubkey: admin, isSigner: true, isWritable: true },
+        { pubkey: market, isSigner: false, isWritable: true },
+        { pubkey: SYSTEM_PROGRAM, isSigner: false, isWritable: false },
+      ],
+      programId: this.programId,
+      data: Buffer.from(instructionData),
+    })
+
+    return transaction
+  }
+
+  // Settle Market (admin/signer settles)
   async settleMarket(
+    admin: PublicKey,
     market: PublicKey,
     tokenMint: PublicKey,
     treasury: PublicKey
@@ -336,12 +387,14 @@ export class KleosProtocolClient {
 
     transaction.add({
       keys: [
+        { pubkey: admin, isSigner: true, isWritable: true },
         { pubkey: protocolPda, isSigner: false, isWritable: false },
         { pubkey: market, isSigner: false, isWritable: true },
         { pubkey: vaultAuthorityPda, isSigner: false, isWritable: false },
         { pubkey: vaultPda, isSigner: false, isWritable: true },
         { pubkey: treasuryTokenAccount, isSigner: false, isWritable: true },
         { pubkey: TOKEN_PROGRAM, isSigner: false, isWritable: false },
+        { pubkey: SYSTEM_PROGRAM, isSigner: false, isWritable: false },
       ],
       programId: this.programId,
       data: Buffer.from(instructionData),

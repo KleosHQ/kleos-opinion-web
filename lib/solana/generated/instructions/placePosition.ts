@@ -61,6 +61,7 @@ export type PlacePositionInstruction<
   TAccountProtocol extends string | AccountMeta<string> = string,
   TAccountMarket extends string | AccountMeta<string> = string,
   TAccountPosition extends string | AccountMeta<string> = string,
+  TAccountTokenMint extends string | AccountMeta<string> = string,
   TAccountUserTokenAccount extends string | AccountMeta<string> = string,
   TAccountVault extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
@@ -84,6 +85,9 @@ export type PlacePositionInstruction<
       TAccountPosition extends string
         ? WritableAccount<TAccountPosition>
         : TAccountPosition,
+      TAccountTokenMint extends string
+        ? ReadonlyAccount<TAccountTokenMint>
+        : TAccountTokenMint,
       TAccountUserTokenAccount extends string
         ? WritableAccount<TAccountUserTokenAccount>
         : TAccountUserTokenAccount,
@@ -149,6 +153,7 @@ export type PlacePositionAsyncInput<
   TAccountProtocol extends string = string,
   TAccountMarket extends string = string,
   TAccountPosition extends string = string,
+  TAccountTokenMint extends string = string,
   TAccountUserTokenAccount extends string = string,
   TAccountVault extends string = string,
   TAccountTokenProgram extends string = string,
@@ -158,6 +163,7 @@ export type PlacePositionAsyncInput<
   protocol?: Address<TAccountProtocol>;
   market: Address<TAccountMarket>;
   position?: Address<TAccountPosition>;
+  tokenMint: Address<TAccountTokenMint>;
   userTokenAccount: Address<TAccountUserTokenAccount>;
   vault: Address<TAccountVault>;
   tokenProgram?: Address<TAccountTokenProgram>;
@@ -172,6 +178,7 @@ export async function getPlacePositionInstructionAsync<
   TAccountProtocol extends string,
   TAccountMarket extends string,
   TAccountPosition extends string,
+  TAccountTokenMint extends string,
   TAccountUserTokenAccount extends string,
   TAccountVault extends string,
   TAccountTokenProgram extends string,
@@ -183,6 +190,7 @@ export async function getPlacePositionInstructionAsync<
     TAccountProtocol,
     TAccountMarket,
     TAccountPosition,
+    TAccountTokenMint,
     TAccountUserTokenAccount,
     TAccountVault,
     TAccountTokenProgram,
@@ -196,6 +204,7 @@ export async function getPlacePositionInstructionAsync<
     TAccountProtocol,
     TAccountMarket,
     TAccountPosition,
+    TAccountTokenMint,
     TAccountUserTokenAccount,
     TAccountVault,
     TAccountTokenProgram,
@@ -212,6 +221,7 @@ export async function getPlacePositionInstructionAsync<
     protocol: { value: input.protocol ?? null, isWritable: false },
     market: { value: input.market ?? null, isWritable: true },
     position: { value: input.position ?? null, isWritable: true },
+    tokenMint: { value: input.tokenMint ?? null, isWritable: false },
     userTokenAccount: {
       value: input.userTokenAccount ?? null,
       isWritable: true,
@@ -267,6 +277,7 @@ export async function getPlacePositionInstructionAsync<
       getAccountMeta(accounts.protocol),
       getAccountMeta(accounts.market),
       getAccountMeta(accounts.position),
+      getAccountMeta(accounts.tokenMint),
       getAccountMeta(accounts.userTokenAccount),
       getAccountMeta(accounts.vault),
       getAccountMeta(accounts.tokenProgram),
@@ -282,6 +293,7 @@ export async function getPlacePositionInstructionAsync<
     TAccountProtocol,
     TAccountMarket,
     TAccountPosition,
+    TAccountTokenMint,
     TAccountUserTokenAccount,
     TAccountVault,
     TAccountTokenProgram,
@@ -294,6 +306,7 @@ export type PlacePositionInput<
   TAccountProtocol extends string = string,
   TAccountMarket extends string = string,
   TAccountPosition extends string = string,
+  TAccountTokenMint extends string = string,
   TAccountUserTokenAccount extends string = string,
   TAccountVault extends string = string,
   TAccountTokenProgram extends string = string,
@@ -303,6 +316,7 @@ export type PlacePositionInput<
   protocol: Address<TAccountProtocol>;
   market: Address<TAccountMarket>;
   position: Address<TAccountPosition>;
+  tokenMint: Address<TAccountTokenMint>;
   userTokenAccount: Address<TAccountUserTokenAccount>;
   vault: Address<TAccountVault>;
   tokenProgram?: Address<TAccountTokenProgram>;
@@ -317,6 +331,7 @@ export function getPlacePositionInstruction<
   TAccountProtocol extends string,
   TAccountMarket extends string,
   TAccountPosition extends string,
+  TAccountTokenMint extends string,
   TAccountUserTokenAccount extends string,
   TAccountVault extends string,
   TAccountTokenProgram extends string,
@@ -328,6 +343,7 @@ export function getPlacePositionInstruction<
     TAccountProtocol,
     TAccountMarket,
     TAccountPosition,
+    TAccountTokenMint,
     TAccountUserTokenAccount,
     TAccountVault,
     TAccountTokenProgram,
@@ -340,6 +356,7 @@ export function getPlacePositionInstruction<
   TAccountProtocol,
   TAccountMarket,
   TAccountPosition,
+  TAccountTokenMint,
   TAccountUserTokenAccount,
   TAccountVault,
   TAccountTokenProgram,
@@ -355,6 +372,7 @@ export function getPlacePositionInstruction<
     protocol: { value: input.protocol ?? null, isWritable: false },
     market: { value: input.market ?? null, isWritable: true },
     position: { value: input.position ?? null, isWritable: true },
+    tokenMint: { value: input.tokenMint ?? null, isWritable: false },
     userTokenAccount: {
       value: input.userTokenAccount ?? null,
       isWritable: true,
@@ -388,6 +406,7 @@ export function getPlacePositionInstruction<
       getAccountMeta(accounts.protocol),
       getAccountMeta(accounts.market),
       getAccountMeta(accounts.position),
+      getAccountMeta(accounts.tokenMint),
       getAccountMeta(accounts.userTokenAccount),
       getAccountMeta(accounts.vault),
       getAccountMeta(accounts.tokenProgram),
@@ -403,6 +422,7 @@ export function getPlacePositionInstruction<
     TAccountProtocol,
     TAccountMarket,
     TAccountPosition,
+    TAccountTokenMint,
     TAccountUserTokenAccount,
     TAccountVault,
     TAccountTokenProgram,
@@ -420,10 +440,11 @@ export type ParsedPlacePositionInstruction<
     protocol: TAccountMetas[1];
     market: TAccountMetas[2];
     position: TAccountMetas[3];
-    userTokenAccount: TAccountMetas[4];
-    vault: TAccountMetas[5];
-    tokenProgram: TAccountMetas[6];
-    systemProgram: TAccountMetas[7];
+    tokenMint: TAccountMetas[4];
+    userTokenAccount: TAccountMetas[5];
+    vault: TAccountMetas[6];
+    tokenProgram: TAccountMetas[7];
+    systemProgram: TAccountMetas[8];
   };
   data: PlacePositionInstructionData;
 };
@@ -436,7 +457,7 @@ export function parsePlacePositionInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedPlacePositionInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 8) {
+  if (instruction.accounts.length < 9) {
     // TODO: Coded error.
     throw new Error("Not enough accounts");
   }
@@ -453,6 +474,7 @@ export function parsePlacePositionInstruction<
       protocol: getNextAccount(),
       market: getNextAccount(),
       position: getNextAccount(),
+      tokenMint: getNextAccount(),
       userTokenAccount: getNextAccount(),
       vault: getNextAccount(),
       tokenProgram: getNextAccount(),

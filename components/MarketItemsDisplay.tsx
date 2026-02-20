@@ -29,7 +29,7 @@ export function MarketItemsDisplay({
     <div className="space-y-4">
       <div>
         <h3 className="text-lg font-semibold mb-3">Market Options</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="flex flex-col gap-2">
           {Array.from({ length: itemCount }, (_, i) => {
             const isSelected = selectedItemIndex === i
             const isWinner = winningItemIndex === i

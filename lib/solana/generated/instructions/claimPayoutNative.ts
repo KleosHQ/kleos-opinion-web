@@ -10,15 +10,12 @@ import {
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
+  getAddressEncoder,
   getBytesDecoder,
   getBytesEncoder,
-  getI64Decoder,
-  getI64Encoder,
   getProgramDerivedAddress,
   getStructDecoder,
   getStructEncoder,
-  getU8Decoder,
-  getU8Encoder,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -36,21 +33,28 @@ import {
   type WritableSignerAccount,
 } from "@solana/kit";
 import { KLEOS_PROTOCOL_PROGRAM_ADDRESS } from "../programs";
-import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
+import {
+  expectAddress,
+  getAccountMetaFactory,
+  type ResolvedAccount,
+} from "../shared";
 
-export const EDIT_MARKET_DISCRIMINATOR = new Uint8Array([
-  77, 92, 29, 5, 217, 159, 214, 32,
+export const CLAIM_PAYOUT_NATIVE_DISCRIMINATOR = new Uint8Array([
+  150, 118, 110, 108, 112, 229, 145, 174,
 ]);
 
-export function getEditMarketDiscriminatorBytes() {
-  return fixEncoderSize(getBytesEncoder(), 8).encode(EDIT_MARKET_DISCRIMINATOR);
+export function getClaimPayoutNativeDiscriminatorBytes() {
+  return fixEncoderSize(getBytesEncoder(), 8).encode(
+    CLAIM_PAYOUT_NATIVE_DISCRIMINATOR,
+  );
 }
 
-export type EditMarketInstruction<
+export type ClaimPayoutNativeInstruction<
   TProgram extends string = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
-  TAccountAdminAuthority extends string | AccountMeta<string> = string,
-  TAccountProtocol extends string | AccountMeta<string> = string,
+  TAccountUser extends string | AccountMeta<string> = string,
   TAccountMarket extends string | AccountMeta<string> = string,
+  TAccountPosition extends string | AccountMeta<string> = string,
+  TAccountVault extends string | AccountMeta<string> = string,
   TAccountSystemProgram extends string | AccountMeta<string> =
     "11111111111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
@@ -58,16 +62,18 @@ export type EditMarketInstruction<
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
-      TAccountAdminAuthority extends string
-        ? WritableSignerAccount<TAccountAdminAuthority> &
-            AccountSignerMeta<TAccountAdminAuthority>
-        : TAccountAdminAuthority,
-      TAccountProtocol extends string
-        ? ReadonlyAccount<TAccountProtocol>
-        : TAccountProtocol,
+      TAccountUser extends string
+        ? WritableSignerAccount<TAccountUser> & AccountSignerMeta<TAccountUser>
+        : TAccountUser,
       TAccountMarket extends string
         ? WritableAccount<TAccountMarket>
         : TAccountMarket,
+      TAccountPosition extends string
+        ? WritableAccount<TAccountPosition>
+        : TAccountPosition,
+      TAccountVault extends string
+        ? WritableAccount<TAccountVault>
+        : TAccountVault,
       TAccountSystemProgram extends string
         ? ReadonlyAccount<TAccountSystemProgram>
         : TAccountSystemProgram,
@@ -75,90 +81,72 @@ export type EditMarketInstruction<
     ]
   >;
 
-export type EditMarketInstructionData = {
+export type ClaimPayoutNativeInstructionData = {
   discriminator: ReadonlyUint8Array;
-  startTs: bigint;
-  endTs: bigint;
-  itemsHash: ReadonlyUint8Array;
-  itemCount: number;
 };
 
-export type EditMarketInstructionDataArgs = {
-  startTs: number | bigint;
-  endTs: number | bigint;
-  itemsHash: ReadonlyUint8Array;
-  itemCount: number;
-};
+export type ClaimPayoutNativeInstructionDataArgs = {};
 
-export function getEditMarketInstructionDataEncoder(): FixedSizeEncoder<EditMarketInstructionDataArgs> {
+export function getClaimPayoutNativeInstructionDataEncoder(): FixedSizeEncoder<ClaimPayoutNativeInstructionDataArgs> {
   return transformEncoder(
-    getStructEncoder([
-      ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
-      ["startTs", getI64Encoder()],
-      ["endTs", getI64Encoder()],
-      ["itemsHash", fixEncoderSize(getBytesEncoder(), 32)],
-      ["itemCount", getU8Encoder()],
-    ]),
-    (value) => ({ ...value, discriminator: EDIT_MARKET_DISCRIMINATOR }),
+    getStructEncoder([["discriminator", fixEncoderSize(getBytesEncoder(), 8)]]),
+    (value) => ({ ...value, discriminator: CLAIM_PAYOUT_NATIVE_DISCRIMINATOR }),
   );
 }
 
-export function getEditMarketInstructionDataDecoder(): FixedSizeDecoder<EditMarketInstructionData> {
+export function getClaimPayoutNativeInstructionDataDecoder(): FixedSizeDecoder<ClaimPayoutNativeInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
-    ["startTs", getI64Decoder()],
-    ["endTs", getI64Decoder()],
-    ["itemsHash", fixDecoderSize(getBytesDecoder(), 32)],
-    ["itemCount", getU8Decoder()],
   ]);
 }
 
-export function getEditMarketInstructionDataCodec(): FixedSizeCodec<
-  EditMarketInstructionDataArgs,
-  EditMarketInstructionData
+export function getClaimPayoutNativeInstructionDataCodec(): FixedSizeCodec<
+  ClaimPayoutNativeInstructionDataArgs,
+  ClaimPayoutNativeInstructionData
 > {
   return combineCodec(
-    getEditMarketInstructionDataEncoder(),
-    getEditMarketInstructionDataDecoder(),
+    getClaimPayoutNativeInstructionDataEncoder(),
+    getClaimPayoutNativeInstructionDataDecoder(),
   );
 }
 
-export type EditMarketAsyncInput<
-  TAccountAdminAuthority extends string = string,
-  TAccountProtocol extends string = string,
+export type ClaimPayoutNativeAsyncInput<
+  TAccountUser extends string = string,
   TAccountMarket extends string = string,
+  TAccountPosition extends string = string,
+  TAccountVault extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
-  adminAuthority: TransactionSigner<TAccountAdminAuthority>;
-  protocol?: Address<TAccountProtocol>;
+  user: TransactionSigner<TAccountUser>;
   market: Address<TAccountMarket>;
+  position?: Address<TAccountPosition>;
+  vault?: Address<TAccountVault>;
   systemProgram?: Address<TAccountSystemProgram>;
-  startTs: EditMarketInstructionDataArgs["startTs"];
-  endTs: EditMarketInstructionDataArgs["endTs"];
-  itemsHash: EditMarketInstructionDataArgs["itemsHash"];
-  itemCount: EditMarketInstructionDataArgs["itemCount"];
 };
 
-export async function getEditMarketInstructionAsync<
-  TAccountAdminAuthority extends string,
-  TAccountProtocol extends string,
+export async function getClaimPayoutNativeInstructionAsync<
+  TAccountUser extends string,
   TAccountMarket extends string,
+  TAccountPosition extends string,
+  TAccountVault extends string,
   TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
 >(
-  input: EditMarketAsyncInput<
-    TAccountAdminAuthority,
-    TAccountProtocol,
+  input: ClaimPayoutNativeAsyncInput<
+    TAccountUser,
     TAccountMarket,
+    TAccountPosition,
+    TAccountVault,
     TAccountSystemProgram
   >,
   config?: { programAddress?: TProgramAddress },
 ): Promise<
-  EditMarketInstruction<
+  ClaimPayoutNativeInstruction<
     TProgramAddress,
-    TAccountAdminAuthority,
-    TAccountProtocol,
+    TAccountUser,
     TAccountMarket,
+    TAccountPosition,
+    TAccountVault,
     TAccountSystemProgram
   >
 > {
@@ -168,9 +156,10 @@ export async function getEditMarketInstructionAsync<
 
   // Original accounts.
   const originalAccounts = {
-    adminAuthority: { value: input.adminAuthority ?? null, isWritable: true },
-    protocol: { value: input.protocol ?? null, isWritable: false },
+    user: { value: input.user ?? null, isWritable: true },
     market: { value: input.market ?? null, isWritable: true },
+    position: { value: input.position ?? null, isWritable: true },
+    vault: { value: input.vault ?? null, isWritable: true },
     systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
@@ -178,17 +167,25 @@ export async function getEditMarketInstructionAsync<
     ResolvedAccount
   >;
 
-  // Original args.
-  const args = { ...input };
-
   // Resolve default values.
-  if (!accounts.protocol.value) {
-    accounts.protocol.value = await getProgramDerivedAddress({
+  if (!accounts.position.value) {
+    accounts.position.value = await getProgramDerivedAddress({
       programAddress,
       seeds: [
         getBytesEncoder().encode(
-          new Uint8Array([112, 114, 111, 116, 111, 99, 111, 108]),
+          new Uint8Array([112, 111, 115, 105, 116, 105, 111, 110]),
         ),
+        getAddressEncoder().encode(expectAddress(accounts.market.value)),
+        getAddressEncoder().encode(expectAddress(accounts.user.value)),
+      ],
+    });
+  }
+  if (!accounts.vault.value) {
+    accounts.vault.value = await getProgramDerivedAddress({
+      programAddress,
+      seeds: [
+        getBytesEncoder().encode(new Uint8Array([118, 97, 117, 108, 116])),
+        getAddressEncoder().encode(expectAddress(accounts.market.value)),
       ],
     });
   }
@@ -200,59 +197,60 @@ export async function getEditMarketInstructionAsync<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta(accounts.adminAuthority),
-      getAccountMeta(accounts.protocol),
+      getAccountMeta(accounts.user),
       getAccountMeta(accounts.market),
+      getAccountMeta(accounts.position),
+      getAccountMeta(accounts.vault),
       getAccountMeta(accounts.systemProgram),
     ],
-    data: getEditMarketInstructionDataEncoder().encode(
-      args as EditMarketInstructionDataArgs,
-    ),
+    data: getClaimPayoutNativeInstructionDataEncoder().encode({}),
     programAddress,
-  } as EditMarketInstruction<
+  } as ClaimPayoutNativeInstruction<
     TProgramAddress,
-    TAccountAdminAuthority,
-    TAccountProtocol,
+    TAccountUser,
     TAccountMarket,
+    TAccountPosition,
+    TAccountVault,
     TAccountSystemProgram
   >);
 }
 
-export type EditMarketInput<
-  TAccountAdminAuthority extends string = string,
-  TAccountProtocol extends string = string,
+export type ClaimPayoutNativeInput<
+  TAccountUser extends string = string,
   TAccountMarket extends string = string,
+  TAccountPosition extends string = string,
+  TAccountVault extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
-  adminAuthority: TransactionSigner<TAccountAdminAuthority>;
-  protocol: Address<TAccountProtocol>;
+  user: TransactionSigner<TAccountUser>;
   market: Address<TAccountMarket>;
+  position: Address<TAccountPosition>;
+  vault: Address<TAccountVault>;
   systemProgram?: Address<TAccountSystemProgram>;
-  startTs: EditMarketInstructionDataArgs["startTs"];
-  endTs: EditMarketInstructionDataArgs["endTs"];
-  itemsHash: EditMarketInstructionDataArgs["itemsHash"];
-  itemCount: EditMarketInstructionDataArgs["itemCount"];
 };
 
-export function getEditMarketInstruction<
-  TAccountAdminAuthority extends string,
-  TAccountProtocol extends string,
+export function getClaimPayoutNativeInstruction<
+  TAccountUser extends string,
   TAccountMarket extends string,
+  TAccountPosition extends string,
+  TAccountVault extends string,
   TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
 >(
-  input: EditMarketInput<
-    TAccountAdminAuthority,
-    TAccountProtocol,
+  input: ClaimPayoutNativeInput<
+    TAccountUser,
     TAccountMarket,
+    TAccountPosition,
+    TAccountVault,
     TAccountSystemProgram
   >,
   config?: { programAddress?: TProgramAddress },
-): EditMarketInstruction<
+): ClaimPayoutNativeInstruction<
   TProgramAddress,
-  TAccountAdminAuthority,
-  TAccountProtocol,
+  TAccountUser,
   TAccountMarket,
+  TAccountPosition,
+  TAccountVault,
   TAccountSystemProgram
 > {
   // Program address.
@@ -261,18 +259,16 @@ export function getEditMarketInstruction<
 
   // Original accounts.
   const originalAccounts = {
-    adminAuthority: { value: input.adminAuthority ?? null, isWritable: true },
-    protocol: { value: input.protocol ?? null, isWritable: false },
+    user: { value: input.user ?? null, isWritable: true },
     market: { value: input.market ?? null, isWritable: true },
+    position: { value: input.position ?? null, isWritable: true },
+    vault: { value: input.vault ?? null, isWritable: true },
     systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedAccount
   >;
-
-  // Original args.
-  const args = { ...input };
 
   // Resolve default values.
   if (!accounts.systemProgram.value) {
@@ -283,47 +279,48 @@ export function getEditMarketInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta(accounts.adminAuthority),
-      getAccountMeta(accounts.protocol),
+      getAccountMeta(accounts.user),
       getAccountMeta(accounts.market),
+      getAccountMeta(accounts.position),
+      getAccountMeta(accounts.vault),
       getAccountMeta(accounts.systemProgram),
     ],
-    data: getEditMarketInstructionDataEncoder().encode(
-      args as EditMarketInstructionDataArgs,
-    ),
+    data: getClaimPayoutNativeInstructionDataEncoder().encode({}),
     programAddress,
-  } as EditMarketInstruction<
+  } as ClaimPayoutNativeInstruction<
     TProgramAddress,
-    TAccountAdminAuthority,
-    TAccountProtocol,
+    TAccountUser,
     TAccountMarket,
+    TAccountPosition,
+    TAccountVault,
     TAccountSystemProgram
   >);
 }
 
-export type ParsedEditMarketInstruction<
+export type ParsedClaimPayoutNativeInstruction<
   TProgram extends string = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
   TAccountMetas extends readonly AccountMeta[] = readonly AccountMeta[],
 > = {
   programAddress: Address<TProgram>;
   accounts: {
-    adminAuthority: TAccountMetas[0];
-    protocol: TAccountMetas[1];
-    market: TAccountMetas[2];
-    systemProgram: TAccountMetas[3];
+    user: TAccountMetas[0];
+    market: TAccountMetas[1];
+    position: TAccountMetas[2];
+    vault: TAccountMetas[3];
+    systemProgram: TAccountMetas[4];
   };
-  data: EditMarketInstructionData;
+  data: ClaimPayoutNativeInstructionData;
 };
 
-export function parseEditMarketInstruction<
+export function parseClaimPayoutNativeInstruction<
   TProgram extends string,
   TAccountMetas extends readonly AccountMeta[],
 >(
   instruction: Instruction<TProgram> &
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
-): ParsedEditMarketInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 4) {
+): ParsedClaimPayoutNativeInstruction<TProgram, TAccountMetas> {
+  if (instruction.accounts.length < 5) {
     // TODO: Coded error.
     throw new Error("Not enough accounts");
   }
@@ -336,11 +333,12 @@ export function parseEditMarketInstruction<
   return {
     programAddress: instruction.programAddress,
     accounts: {
-      adminAuthority: getNextAccount(),
-      protocol: getNextAccount(),
+      user: getNextAccount(),
       market: getNextAccount(),
+      position: getNextAccount(),
+      vault: getNextAccount(),
       systemProgram: getNextAccount(),
     },
-    data: getEditMarketInstructionDataDecoder().decode(instruction.data),
+    data: getClaimPayoutNativeInstructionDataDecoder().decode(instruction.data),
   };
 }

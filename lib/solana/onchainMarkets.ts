@@ -91,7 +91,7 @@ export async function fetchAllOnchainMarkets(connection: Connection): Promise<On
       status,
       totalRawStake: decoded.totalRawStake.toString(),
       totalEffectiveStake: decoded.totalEffectiveStake.toString(),
-      winningItemIndex: winningIndexOrNull(status, decoded.winningItemIndex),
+      winningItemIndex: null, // Generated Market type has no winningItemIndex; use solanaService for full decode
       tokenMint: decoded.tokenMint as unknown as string,
       vault: decoded.vault as unknown as string,
     } satisfies OnchainMarket
@@ -124,7 +124,7 @@ export async function fetchOnchainMarketById(
     status,
     totalRawStake: decoded.totalRawStake.toString(),
     totalEffectiveStake: decoded.totalEffectiveStake.toString(),
-    winningItemIndex: winningIndexOrNull(status, decoded.winningItemIndex),
+    winningItemIndex: null, // Generated Market type has no winningItemIndex; use solanaService for full decode
     tokenMint: decoded.tokenMint as unknown as string,
     vault: decoded.vault as unknown as string,
   }

@@ -1,49 +1,22 @@
 /**
- * Wrapper for Codama-generated client
- * This file provides a unified interface whether using Codama or manual client
+ * Protocol client – builds transactions matching kleos-protocol test patterns.
+ * Uses KleosProtocolClient (manual instruction builder) which mirrors the Anchor
+ * program.methods().accounts().rpc() flow from kleos-protocol/tests.
+ *
+ * IDL flow: kleos-protocol (anchor build) → target/idl (sync:idl) → Codama (generate:client)
  */
 
 import { Connection, PublicKey, Transaction } from '@solana/web3.js'
-import { getAssociatedTokenAddress } from '@solana/spl-token'
-
-// Try to import Codama-generated client
-let CodamaGeneratedClient: any = null
-try {
-  // @ts-ignore - Generated code
-  CodamaGeneratedClient = require('./generated').default
-} catch (e) {
-  // Codama client not generated yet, will use manual client
-}
-
-// Fallback to manual client if Codama not available
 import { KleosProtocolClient, PROGRAM_ID } from './client'
 
 export class ProtocolClient {
-  private client: any
-  private connection: Connection
-  private useCodama: boolean
+  private client: KleosProtocolClient
 
   constructor(connection: Connection) {
-    this.connection = connection
-    this.useCodama = !!CodamaGeneratedClient
-
-    if (this.useCodama) {
-      // Initialize Codama client (uses program address string)
-      this.client = new CodamaGeneratedClient({
-        connection,
-        programId: PROGRAM_ID.toBase58(),
-      })
-    } else {
-      // Use manual client
-      this.client = new KleosProtocolClient(connection, PROGRAM_ID)
-    }
+    this.client = new KleosProtocolClient(connection, PROGRAM_ID)
   }
 
-  // Protocol methods
   async initializeProtocol(admin: PublicKey, protocolFeeBps: number): Promise<Transaction> {
-    if (this.useCodama) {
-      return this.client.initializeProtocol({ protocolFeeBps }, { feePayer: admin })
-    }
     return this.client.initializeProtocol(admin, protocolFeeBps)
   }
 
@@ -53,16 +26,9 @@ export class ProtocolClient {
     treasury: PublicKey,
     paused: boolean
   ): Promise<Transaction> {
-    if (this.useCodama) {
-      return this.client.updateProtocol(
-        { protocolFeeBps, treasury, paused },
-        { feePayer: admin }
-      )
-    }
     return this.client.updateProtocol(admin, protocolFeeBps, treasury, paused)
   }
 
-  // Market methods
   async createMarket(
     admin: PublicKey,
     tokenMint: PublicKey,
@@ -72,18 +38,15 @@ export class ProtocolClient {
     itemCount: number,
     marketCount: bigint
   ): Promise<Transaction> {
-    if (this.useCodama) {
-      return this.client.createMarket(
-        {
-          startTs: BigInt(startTs),
-          endTs: BigInt(endTs),
-          itemsHash: Array.from(itemsHash),
-          itemCount,
-        },
-        { feePayer: admin }
-      )
-    }
-    return this.client.createMarket(admin, tokenMint, startTs, endTs, itemsHash, itemCount, marketCount)
+    return this.client.createMarket(
+      admin,
+      tokenMint,
+      startTs,
+      endTs,
+      itemsHash,
+      itemCount,
+      marketCount
+    )
   }
 
   async editMarket(
@@ -94,65 +57,60 @@ export class ProtocolClient {
     itemsHash: number[] | Uint8Array,
     itemCount: number
   ): Promise<Transaction> {
-    if (this.useCodama) {
-      return this.client.editMarket(
-        {
-          startTs: BigInt(startTs),
-          endTs: BigInt(endTs),
-          itemsHash: Array.from(itemsHash),
-          itemCount,
-        },
-        { feePayer: admin }
-      )
-    }
     return this.client.editMarket(admin, market, startTs, endTs, itemsHash, itemCount)
   }
 
   async openMarket(admin: PublicKey, market: PublicKey): Promise<Transaction> {
-    if (this.useCodama) {
-      return this.client.openMarket({}, { feePayer: admin })
-    }
     return this.client.openMarket(admin, market)
   }
 
-  async closeMarket(market: PublicKey): Promise<Transaction> {
-    if (this.useCodama) {
-      return this.client.closeMarket({})
-    }
-    return this.client.closeMarket(market)
+  async closeMarket(admin: PublicKey, market: PublicKey): Promise<Transaction> {
+    return this.client.closeMarket(admin, market)
   }
 
   async settleMarket(
+    admin: PublicKey,
     market: PublicKey,
     tokenMint: PublicKey,
     treasury: PublicKey
   ): Promise<Transaction> {
-    if (this.useCodama) {
-      return this.client.settleMarket({})
-    }
-    return this.client.settleMarket(market, tokenMint, treasury)
+    return this.client.settleMarket(admin, market, tokenMint, treasury)
   }
 
-  // Position methods
   async placePosition(
     user: PublicKey,
     market: PublicKey,
     tokenMint: PublicKey,
     selectedItemIndex: number,
     rawStake: bigint | number,
+    effectiveStake: bigint | string,
+    tokenProgram?: PublicKey
+  ): Promise<Transaction> {
+    return this.client.placePosition(
+      user,
+      market,
+      tokenMint,
+      selectedItemIndex,
+      rawStake,
+      effectiveStake,
+      tokenProgram
+    )
+  }
+
+  async placePositionNative(
+    user: PublicKey,
+    market: PublicKey,
+    selectedItemIndex: number,
+    rawStake: bigint | number,
     effectiveStake: bigint | string
   ): Promise<Transaction> {
-    if (this.useCodama) {
-      return this.client.placePosition(
-        {
-          selectedItemIndex,
-          rawStake: BigInt(rawStake),
-          effectiveStake: typeof effectiveStake === 'string' ? BigInt(effectiveStake) : BigInt(effectiveStake),
-        },
-        { feePayer: user }
-      )
-    }
-    return this.client.placePosition(user, market, tokenMint, selectedItemIndex, rawStake, effectiveStake)
+    return this.client.placePositionNative(
+      user,
+      market,
+      selectedItemIndex,
+      rawStake,
+      effectiveStake
+    )
   }
 
   async claimPayout(
@@ -160,17 +118,8 @@ export class ProtocolClient {
     market: PublicKey,
     tokenMint: PublicKey
   ): Promise<Transaction> {
-    if (this.useCodama) {
-      return this.client.claimPayout({}, { feePayer: user })
-    }
     return this.client.claimPayout(user, market, tokenMint)
-  }
-
-  // Helper to check if Codama is being used
-  isUsingCodama(): boolean {
-    return this.useCodama
   }
 }
 
-// Export PDA helpers
 export * from './client'

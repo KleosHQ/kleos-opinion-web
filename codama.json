@@ -1,5 +1,5 @@
 {
-  "idl": "./idl/kleos_protocol.json",
+  "idl": "./target/idl/kleos_protocol.json",
   "scripts": {
     "js": {
       "from": "@codama/renderers-js",

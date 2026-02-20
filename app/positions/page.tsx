@@ -2,14 +2,19 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { PublicKey, Transaction } from '@solana/web3.js'
+import { useWallets } from '@privy-io/react-auth/solana'
+import bs58 from 'bs58'
 import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
 import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 import { positionsApi } from '@/lib/api'
+import { useSolanaClient } from '@/lib/solana/useSolanaClient'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StreakIndicator } from '@/components/StreakIndicator'
+import { toast } from '@/lib/utils/toast'
 
 interface Position {
   id: string
@@ -25,14 +30,18 @@ interface Position {
     status: string
     itemCount: number
     winningItemIndex: number | null
+    tokenMint?: string
   }
 }
 
 export default function PositionsPage() {
   const { connectSolanaWallet, connecting, ready, authenticated, logout } = useSolanaLogin()
-  const { address: walletAddress } = useSolanaWallet()
+  const { address: walletAddress, publicKey } = useSolanaWallet()
+  const { wallets } = useWallets()
+  const { client, connection } = useSolanaClient()
   const [positions, setPositions] = useState<Position[]>([])
   const [loading, setLoading] = useState(false)
+  const [claimingId, setClaimingId] = useState<string | null>(null)
   const fetchingRef = useRef(false)
   const lastWalletRef = useRef<string | null>(null)
 
@@ -59,17 +68,44 @@ export default function PositionsPage() {
     fetchPositions()
   }, [ready, walletAddress])
 
-  const handleClaim = async (positionId: string) => {
-    if (!walletAddress) return
+  const handleClaim = async (position: Position) => {
+    if (!walletAddress || !publicKey) return
+    const tokenMint = position.market.tokenMint
+    if (!tokenMint) {
+      toast.error('Market token mint not found')
+      return
+    }
+    const solanaWallet = wallets.find(w => w.address && !w.address.startsWith('0x') && w.address === walletAddress)
+    if (!solanaWallet) {
+      toast.error('Solana wallet not found')
+      return
+    }
+    setClaimingId(position.id)
     try {
-      const response = await positionsApi.claim(positionId, { user: walletAddress })
-      const data = response.data
-      alert(`Payout: ${data.payout} (On-chain tx required)`)
+      const { getMarketPda } = await import('@/lib/solana/client')
+      const [marketPda] = await getMarketPda(BigInt(position.market.marketId))
+      const tokenMintPubkey = new PublicKey(tokenMint)
+      const transaction = await client.claimPayout(publicKey, marketPda, tokenMintPubkey)
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+      if (transaction instanceof Transaction) {
+        transaction.recentBlockhash = blockhash
+        transaction.feePayer = publicKey
+      }
+      const signResult = await solanaWallet.signAndSendTransaction({
+        transaction: transaction instanceof Transaction ? transaction.serialize({ requireAllSignatures: false, verifySignatures: false }) : transaction,
+        chain: 'solana:devnet',
+      })
+      const sigValue = typeof signResult === 'string' ? signResult : signResult.signature
+      const signature = typeof sigValue === 'string' ? sigValue : bs58.encode(sigValue)
+      await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
+      await positionsApi.claim(position.id, { user: walletAddress })
+      toast.success('Payout claimed successfully!')
       const res = await positionsApi.getByUser(walletAddress)
       setPositions(res.data)
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { error?: string } } }
-      alert(err.response?.data?.error || 'Failed to claim')
+      toast.fromApiOrProgramError(error, 'Failed to claim')
+    } finally {
+      setClaimingId(null)
     }
   }
 
@@ -179,7 +215,9 @@ export default function PositionsPage() {
                     </div>
 
                     {canClaim && (
-                      <Button onClick={() => handleClaim(position.id)}>Claim Payout</Button>
+                      <Button onClick={() => handleClaim(position)} disabled={claimingId === position.id}>
+                        {claimingId === position.id ? 'Claiming...' : 'Claim Payout'}
+                      </Button>
                     )}
                   </CardContent>
                 </Card>

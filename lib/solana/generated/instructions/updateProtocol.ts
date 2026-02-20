@@ -31,6 +31,7 @@ import {
   type Instruction,
   type InstructionWithAccounts,
   type InstructionWithData,
+  type ReadonlyAccount,
   type ReadonlyUint8Array,
   type TransactionSigner,
   type WritableAccount,
@@ -53,6 +54,8 @@ export type UpdateProtocolInstruction<
   TProgram extends string = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
   TAccountAdminAuthority extends string | AccountMeta<string> = string,
   TAccountProtocol extends string | AccountMeta<string> = string,
+  TAccountSystemProgram extends string | AccountMeta<string> =
+    "11111111111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -65,6 +68,9 @@ export type UpdateProtocolInstruction<
       TAccountProtocol extends string
         ? WritableAccount<TAccountProtocol>
         : TAccountProtocol,
+      TAccountSystemProgram extends string
+        ? ReadonlyAccount<TAccountSystemProgram>
+        : TAccountSystemProgram,
       ...TRemainingAccounts,
     ]
   >;
@@ -116,9 +122,11 @@ export function getUpdateProtocolInstructionDataCodec(): FixedSizeCodec<
 export type UpdateProtocolAsyncInput<
   TAccountAdminAuthority extends string = string,
   TAccountProtocol extends string = string,
+  TAccountSystemProgram extends string = string,
 > = {
   adminAuthority: TransactionSigner<TAccountAdminAuthority>;
   protocol?: Address<TAccountProtocol>;
+  systemProgram?: Address<TAccountSystemProgram>;
   protocolFeeBps: UpdateProtocolInstructionDataArgs["protocolFeeBps"];
   treasury: UpdateProtocolInstructionDataArgs["treasury"];
   paused: UpdateProtocolInstructionDataArgs["paused"];
@@ -127,15 +135,21 @@ export type UpdateProtocolAsyncInput<
 export async function getUpdateProtocolInstructionAsync<
   TAccountAdminAuthority extends string,
   TAccountProtocol extends string,
+  TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
 >(
-  input: UpdateProtocolAsyncInput<TAccountAdminAuthority, TAccountProtocol>,
+  input: UpdateProtocolAsyncInput<
+    TAccountAdminAuthority,
+    TAccountProtocol,
+    TAccountSystemProgram
+  >,
   config?: { programAddress?: TProgramAddress },
 ): Promise<
   UpdateProtocolInstruction<
     TProgramAddress,
     TAccountAdminAuthority,
-    TAccountProtocol
+    TAccountProtocol,
+    TAccountSystemProgram
   >
 > {
   // Program address.
@@ -146,6 +160,7 @@ export async function getUpdateProtocolInstructionAsync<
   const originalAccounts = {
     adminAuthority: { value: input.adminAuthority ?? null, isWritable: true },
     protocol: { value: input.protocol ?? null, isWritable: true },
+    systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -166,12 +181,17 @@ export async function getUpdateProtocolInstructionAsync<
       ],
     });
   }
+  if (!accounts.systemProgram.value) {
+    accounts.systemProgram.value =
+      "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
+  }
 
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
       getAccountMeta(accounts.adminAuthority),
       getAccountMeta(accounts.protocol),
+      getAccountMeta(accounts.systemProgram),
     ],
     data: getUpdateProtocolInstructionDataEncoder().encode(
       args as UpdateProtocolInstructionDataArgs,
@@ -180,16 +200,19 @@ export async function getUpdateProtocolInstructionAsync<
   } as UpdateProtocolInstruction<
     TProgramAddress,
     TAccountAdminAuthority,
-    TAccountProtocol
+    TAccountProtocol,
+    TAccountSystemProgram
   >);
 }
 
 export type UpdateProtocolInput<
   TAccountAdminAuthority extends string = string,
   TAccountProtocol extends string = string,
+  TAccountSystemProgram extends string = string,
 > = {
   adminAuthority: TransactionSigner<TAccountAdminAuthority>;
   protocol: Address<TAccountProtocol>;
+  systemProgram?: Address<TAccountSystemProgram>;
   protocolFeeBps: UpdateProtocolInstructionDataArgs["protocolFeeBps"];
   treasury: UpdateProtocolInstructionDataArgs["treasury"];
   paused: UpdateProtocolInstructionDataArgs["paused"];
@@ -198,14 +221,20 @@ export type UpdateProtocolInput<
 export function getUpdateProtocolInstruction<
   TAccountAdminAuthority extends string,
   TAccountProtocol extends string,
+  TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof KLEOS_PROTOCOL_PROGRAM_ADDRESS,
 >(
-  input: UpdateProtocolInput<TAccountAdminAuthority, TAccountProtocol>,
+  input: UpdateProtocolInput<
+    TAccountAdminAuthority,
+    TAccountProtocol,
+    TAccountSystemProgram
+  >,
   config?: { programAddress?: TProgramAddress },
 ): UpdateProtocolInstruction<
   TProgramAddress,
   TAccountAdminAuthority,
-  TAccountProtocol
+  TAccountProtocol,
+  TAccountSystemProgram
 > {
   // Program address.
   const programAddress =
@@ -215,6 +244,7 @@ export function getUpdateProtocolInstruction<
   const originalAccounts = {
     adminAuthority: { value: input.adminAuthority ?? null, isWritable: true },
     protocol: { value: input.protocol ?? null, isWritable: true },
+    systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -224,11 +254,18 @@ export function getUpdateProtocolInstruction<
   // Original args.
   const args = { ...input };
 
+  // Resolve default values.
+  if (!accounts.systemProgram.value) {
+    accounts.systemProgram.value =
+      "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
+  }
+
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
       getAccountMeta(accounts.adminAuthority),
       getAccountMeta(accounts.protocol),
+      getAccountMeta(accounts.systemProgram),
     ],
     data: getUpdateProtocolInstructionDataEncoder().encode(
       args as UpdateProtocolInstructionDataArgs,
@@ -237,7 +274,8 @@ export function getUpdateProtocolInstruction<
   } as UpdateProtocolInstruction<
     TProgramAddress,
     TAccountAdminAuthority,
-    TAccountProtocol
+    TAccountProtocol,
+    TAccountSystemProgram
   >);
 }
 
@@ -249,6 +287,7 @@ export type ParsedUpdateProtocolInstruction<
   accounts: {
     adminAuthority: TAccountMetas[0];
     protocol: TAccountMetas[1];
+    systemProgram: TAccountMetas[2];
   };
   data: UpdateProtocolInstructionData;
 };
@@ -261,7 +300,7 @@ export function parseUpdateProtocolInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedUpdateProtocolInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 2) {
+  if (instruction.accounts.length < 3) {
     // TODO: Coded error.
     throw new Error("Not enough accounts");
   }
@@ -273,7 +312,11 @@ export function parseUpdateProtocolInstruction<
   };
   return {
     programAddress: instruction.programAddress,
-    accounts: { adminAuthority: getNextAccount(), protocol: getNextAccount() },
+    accounts: {
+      adminAuthority: getNextAccount(),
+      protocol: getNextAccount(),
+      systemProgram: getNextAccount(),
+    },
     data: getUpdateProtocolInstructionDataDecoder().decode(instruction.data),
   };
 }
