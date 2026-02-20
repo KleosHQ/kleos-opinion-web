@@ -241,8 +241,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the transaction on the backend
-    const { Connection, PublicKey, Transaction } = await import('@solana/web3.js')
-    const { getMarketPda, KleosProtocolClient } = await import('@/lib/solana/client')
+    const { Connection, PublicKey, Transaction, SystemProgram: SolanaSystemProgram } = await import('@solana/web3.js')
+    const { getMarketPda, getVaultAuthorityPda, KleosProtocolClient } = await import('@/lib/solana/client')
     const { TOKEN_PROGRAM_ID } = await import('@solana/spl-token')
     
     const connection = new Connection(SOLANA_RPC_URL, 'confirmed')
@@ -251,22 +251,69 @@ export async function POST(request: NextRequest) {
     const [marketPda] = await getMarketPda(BigInt(marketId))
     const tokenMintPubkey = new PublicKey(onchainMarket.tokenMint)
     
-    let transaction: Transaction
+    let transaction: InstanceType<typeof Transaction>
     
     // Check if native SOL market (tokenMint is SystemProgram or native)
     const nativeMint = '11111111111111111111111111111111'
+    const systemProgramId = SolanaSystemProgram.programId.toBase58()
     const isNative = onchainMarket.tokenMint === nativeMint || 
-                     onchainMarket.tokenMint === SystemProgram.programId.toBase58()
+                     onchainMarket.tokenMint === systemProgramId
+    
+    console.log('Market token mint check:', {
+      tokenMint: onchainMarket.tokenMint,
+      nativeMint,
+      systemProgramId,
+      isNative,
+    })
     
     if (isNative) {
-      // Native SOL market
-      transaction = await client.placePositionNative(
+      // Native SOL market - add explicit transfer so wallet shows the amount
+      const [vaultPda] = await getVaultAuthorityPda(marketPda)
+      
+      // CRITICAL: Ensure lamports is a proper number (not losing precision)
+      const transferLamports = typeof rawStakeLamports === 'bigint' 
+        ? Number(rawStakeLamports) 
+        : Number(rawStakeLamports)
+      
+      // Validate lamports is correct
+      if (isNaN(transferLamports) || transferLamports <= 0 || transferLamports > 1e15) {
+        console.error('Invalid lamports:', { rawStakeLamports, transferLamports })
+        return NextResponse.json({ 
+          error: 'Invalid stake amount',
+          details: `lamports: ${transferLamports}`
+        }, { status: 400 })
+      }
+      
+      console.log('Creating native SOL transaction:', {
+        from: userPubkey.toBase58(),
+        to: vaultPda.toBase58(),
+        lamports: transferLamports,
+        sol: transferLamports / 1e9,
+        rawStakeLamports: rawStakeLamports.toString()
+      })
+      
+      // Create transaction with transfer instruction first (wallet needs to see this)
+      transaction = new Transaction()
+      
+      // Add SystemProgram transfer - this makes the amount visible to the wallet
+      // CRITICAL: Use proper number, not bigint
+      transaction.add(
+        SolanaSystemProgram.transfer({
+          fromPubkey: userPubkey,
+          toPubkey: vaultPda,
+          lamports: transferLamports,
+        })
+      )
+      
+      // Add the program instruction after the transfer
+      const programTx = await client.placePositionNative(
         userPubkey,
         marketPda,
         selectedItemIndex,
         rawStakeLamports,
         BigInt(effectiveStakeForChain)
       )
+      transaction.add(...programTx.instructions)
     } else {
       // SPL token market
       const tokenProgram = TOKEN_PROGRAM_ID
@@ -281,10 +328,27 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Get recent blockhash and set fee payer
+    // CRITICAL: Get recent blockhash and set fee payer BEFORE serialization
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
-    transaction.recentBlockhash = blockhash
+    
+    // Set fee payer and blockhash - MUST be done before serialization
     transaction.feePayer = userPubkey
+    transaction.recentBlockhash = blockhash
+    
+    // Validate transaction before serialization
+    if (!transaction.feePayer) {
+      return NextResponse.json({ error: 'Transaction missing fee payer' }, { status: 500 })
+    }
+    if (!transaction.recentBlockhash) {
+      return NextResponse.json({ error: 'Transaction missing recent blockhash' }, { status: 500 })
+    }
+    
+    console.log('Transaction ready for serialization:', {
+      feePayer: transaction.feePayer.toBase58(),
+      hasBlockhash: !!transaction.recentBlockhash,
+      instructionsCount: transaction.instructions.length,
+      firstInstructionProgram: transaction.instructions[0]?.programId.toBase58(),
+    })
     
     // Serialize transaction (without signatures - user will sign)
     const serializedTransaction = transaction.serialize({

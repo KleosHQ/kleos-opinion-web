@@ -296,6 +296,23 @@ export default function MarketDetailPage() {
       const transactionBuffer = Buffer.from(validationResponse.data.transaction, 'base64')
       const transaction = Transaction.from(transactionBuffer)
       
+      // Log transaction structure for debugging
+      console.log('Deserialized transaction:', {
+        instructionsCount: transaction.instructions.length,
+        feePayer: transaction.feePayer?.toBase58(),
+        instructions: transaction.instructions.map((ix, idx) => ({
+          index: idx,
+          programId: ix.programId.toBase58(),
+          keys: ix.keys.map(k => ({
+            pubkey: k.pubkey.toBase58(),
+            isSigner: k.isSigner,
+            isWritable: k.isWritable,
+          })),
+          dataLength: ix.data.length,
+          data: Array.from(ix.data).slice(0, 10), // First 10 bytes
+        })),
+      })
+      
       const { blockhash, lastValidBlockHeight } = validationResponse.data
 
       // Sign and send transaction
