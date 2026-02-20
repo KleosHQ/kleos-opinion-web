@@ -205,7 +205,7 @@ export default function MarketDetailPage() {
   }, [ready, fetchMarket])
 
   const handlePlacePosition = async () => {
-    if (!authenticated || !walletAddress || !publicKey || !selectedItem || !rawStake || !market) {
+    if (!authenticated || !walletAddress || !publicKey || selectedItem === null || !rawStake || !market) {
       toast.error('Please fill all fields and connect a Solana wallet')
       return
     }
