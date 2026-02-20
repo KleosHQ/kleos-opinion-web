@@ -253,17 +253,21 @@ export async function POST(request: NextRequest) {
     
     let transaction: InstanceType<typeof Transaction>
     
-    // Check if native SOL market (tokenMint is SystemProgram or native)
-    const nativeMint = '11111111111111111111111111111111'
+    // Check if native SOL market (tokenMint is SystemProgram or wrapped SOL)
+    const nativeMint = '11111111111111111111111111111111' // System Program
+    const wrappedSolMint = 'So11111111111111111111111111111111111111112' // Wrapped SOL (WSOL)
     const systemProgramId = SolanaSystemProgram.programId.toBase58()
     const isNative = onchainMarket.tokenMint === nativeMint || 
-                     onchainMarket.tokenMint === systemProgramId
+                     onchainMarket.tokenMint === systemProgramId ||
+                     onchainMarket.tokenMint === wrappedSolMint
     
     console.log('Market token mint check:', {
       tokenMint: onchainMarket.tokenMint,
       nativeMint,
+      wrappedSolMint,
       systemProgramId,
       isNative,
+      isWrappedSol: onchainMarket.tokenMint === wrappedSolMint,
     })
     
     if (isNative) {
