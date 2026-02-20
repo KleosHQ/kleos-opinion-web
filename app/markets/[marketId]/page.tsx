@@ -220,6 +220,104 @@ export default function MarketDetailPage() {
 
     setPlacingPosition(true)
     try {
+      // Get wallet first (needed for wrapped SOL transactions)
+      const solanaWallet = wallets.find(w => w.address && !w.address.startsWith('0x') && w.address === walletAddress)
+      if (!solanaWallet) {
+        throw new Error('Solana wallet not found')
+      }
+      
+      // Check if market uses wrapped SOL and user has enough
+      if (market.tokenMint === 'So11111111111111111111111111111111111111112') {
+        const { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, createSyncNativeInstruction, NATIVE_MINT } = await import('@solana/spl-token')
+        const { SystemProgram: SolSystemProgram } = await import('@solana/web3.js')
+        const tokenMintPubkey = new PublicKey(market.tokenMint)
+        const userAta = await getAssociatedTokenAddress(tokenMintPubkey, publicKey)
+        
+        const ataInfo = await connection.getAccountInfo(userAta)
+        const requiredLamports = Math.floor(rawStakeNum * 1e9)
+        
+        if (!ataInfo) {
+          // Create wrapped SOL account and wrap SOL
+          toast.success('Wrapping SOL...', 'Creating wrapped SOL account and wrapping your SOL')
+          
+          const wrapTx = new Transaction()
+          
+          // Create ATA for wrapped SOL
+          wrapTx.add(
+            createAssociatedTokenAccountInstruction(
+              publicKey,
+              userAta,
+              publicKey,
+              NATIVE_MINT
+            )
+          )
+          
+          // Transfer SOL to the ATA (this wraps it)
+          wrapTx.add(
+            SolSystemProgram.transfer({
+              fromPubkey: publicKey,
+              toPubkey: userAta,
+              lamports: requiredLamports,
+            })
+          )
+          
+          // Sync native (finalize the wrapping)
+          wrapTx.add(createSyncNativeInstruction(userAta))
+          
+          const { blockhash: wrapBlockhash, lastValidBlockHeight: wrapLastValidBlockHeight } = await connection.getLatestBlockhash()
+          wrapTx.recentBlockhash = wrapBlockhash
+          wrapTx.feePayer = publicKey
+          
+          const wrapResult = await solanaWallet.signAndSendTransaction({
+            transaction: wrapTx.serialize({ requireAllSignatures: false, verifySignatures: false }),
+            chain: 'solana:devnet',
+          })
+          
+          const wrapSig = typeof wrapResult === 'string' ? wrapResult : bs58.encode(wrapResult.signature ?? wrapResult)
+          await connection.confirmTransaction({ signature: wrapSig, blockhash: wrapBlockhash, lastValidBlockHeight: wrapLastValidBlockHeight }, 'confirmed')
+          
+          toast.success('SOL wrapped successfully!', `Wrapped ${rawStakeNum} SOL`)
+        } else {
+          // Check if enough wrapped SOL
+          const tokenBalance = await connection.getTokenAccountBalance(userAta)
+          const balanceLamports = Number(tokenBalance.value.amount)
+          
+          if (balanceLamports < requiredLamports) {
+            // Need to wrap more SOL
+            toast.success('Wrapping additional SOL...', `Need to wrap ${(requiredLamports - balanceLamports) / 1e9} more SOL`)
+            
+            const additionalAmount = requiredLamports - balanceLamports
+            const wrapTx = new Transaction()
+            
+            // Transfer SOL to the ATA
+            wrapTx.add(
+              SolSystemProgram.transfer({
+                fromPubkey: publicKey,
+                toPubkey: userAta,
+                lamports: additionalAmount,
+              })
+            )
+            
+            // Sync native
+            wrapTx.add(createSyncNativeInstruction(userAta))
+            
+            const { blockhash: wrapBlockhash, lastValidBlockHeight: wrapLastValidBlockHeight } = await connection.getLatestBlockhash()
+            wrapTx.recentBlockhash = wrapBlockhash
+            wrapTx.feePayer = publicKey
+            
+            const wrapResult = await solanaWallet.signAndSendTransaction({
+              transaction: wrapTx.serialize({ requireAllSignatures: false, verifySignatures: false }),
+              chain: 'solana:devnet',
+            })
+            
+            const wrapSig = typeof wrapResult === 'string' ? wrapResult : bs58.encode(wrapResult.signature ?? wrapResult)
+            await connection.confirmTransaction({ signature: wrapSig, blockhash: wrapBlockhash, lastValidBlockHeight: wrapLastValidBlockHeight }, 'confirmed')
+            
+            toast.success('SOL wrapped successfully!', `Wrapped additional ${additionalAmount / 1e9} SOL`)
+          }
+        }
+      }
+      
       // Step 1: Calculate effective stake from backend
       const effectiveStakeResponse = await positionsApi.calculateEffectiveStake({
         wallet: walletAddress,
@@ -231,8 +329,8 @@ export default function MarketDetailPage() {
       // effectiveStakeLamports is already in lamports (integer)
       const effectiveStakeLamports = effectiveStakeResponse.data.effectiveStakeLamports ?? Math.floor(calculatedEffectiveStake * 1e9)
       const fairscore = effectiveStakeResponse.data.fairscore
-      const reputationMultiplier = effectiveStakeResponse.data.reputationMultiplier
-      const timingMultiplier = effectiveStakeResponse.data.timingMultiplier
+      const reputationMultiplier = effectiveStakeResponse.data.multipliers?.reputation ?? 1
+      const timingMultiplier = effectiveStakeResponse.data.multipliers?.timing ?? 1
       const calculationTimestamp = effectiveStakeResponse.data.calculationTimestamp
 
       console.log('Effective Stake Calculation:', {
@@ -286,11 +384,7 @@ export default function MarketDetailPage() {
       }
 
       // Step 3: Backend has created the transaction, now sign and send it
-      const solanaWallet = wallets.find(w => w.address && !w.address.startsWith('0x') && w.address === walletAddress)
-
-      if (!solanaWallet) {
-        throw new Error('Solana wallet not found')
-      }
+      // (solanaWallet is already declared at the top of try block)
 
       // Deserialize transaction from backend
       const transactionBuffer = Buffer.from(validationResponse.data.transaction, 'base64')
@@ -351,7 +445,7 @@ export default function MarketDetailPage() {
         marketEndTs: validationResponse.data.marketEndTs,
       })
 
-      toast.success('Position placed!', `Influence: ${calculatedEffectiveStake} SOL · Credibility: ${fairscore} · Reputation: ${reputationMultiplier.toFixed(2)}x · Timing: ${timingMultiplier.toFixed(2)}x`)
+      toast.success('Position placed!', `Influence: ${calculatedEffectiveStake?.toFixed(3) || '?'} SOL · Credibility: ${fairscore || '?'} · Reputation: ${reputationMultiplier?.toFixed(2) || '?'}x · Timing: ${timingMultiplier?.toFixed(2) || '?'}x`)
       setRawStake('')
       setSelectedItem(null)
       fetchMarket()

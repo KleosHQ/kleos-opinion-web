@@ -253,13 +253,14 @@ export async function POST(request: NextRequest) {
     
     let transaction: InstanceType<typeof Transaction>
     
-    // Check if native SOL market (tokenMint is SystemProgram or wrapped SOL)
+    // Check if native SOL market (tokenMint is SystemProgram ONLY)
+    // Wrapped SOL (So11111...) is treated as an SPL token, NOT native
     const nativeMint = '11111111111111111111111111111111' // System Program
-    const wrappedSolMint = 'So11111111111111111111111111111111111111112' // Wrapped SOL (WSOL)
+    const wrappedSolMint = 'So11111111111111111111111111111111111111112' // Wrapped SOL (SPL token)
     const systemProgramId = SolanaSystemProgram.programId.toBase58()
     const isNative = onchainMarket.tokenMint === nativeMint || 
-                     onchainMarket.tokenMint === systemProgramId ||
-                     onchainMarket.tokenMint === wrappedSolMint
+                     onchainMarket.tokenMint === systemProgramId
+    const isWrappedSol = onchainMarket.tokenMint === wrappedSolMint
     
     console.log('Market token mint check:', {
       tokenMint: onchainMarket.tokenMint,
@@ -267,57 +268,27 @@ export async function POST(request: NextRequest) {
       wrappedSolMint,
       systemProgramId,
       isNative,
-      isWrappedSol: onchainMarket.tokenMint === wrappedSolMint,
+      isWrappedSol,
+      treatAsToken: !isNative, // Wrapped SOL is treated as SPL token
     })
     
     if (isNative) {
-      // Native SOL market - add explicit transfer so wallet shows the amount
-      const [vaultPda] = await getVaultAuthorityPda(marketPda)
-      
-      // CRITICAL: Ensure lamports is a proper number (not losing precision)
-      const transferLamports = typeof rawStakeLamports === 'bigint' 
-        ? Number(rawStakeLamports) 
-        : Number(rawStakeLamports)
-      
-      // Validate lamports is correct
-      if (isNaN(transferLamports) || transferLamports <= 0 || transferLamports > 1e15) {
-        console.error('Invalid lamports:', { rawStakeLamports, transferLamports })
-        return NextResponse.json({ 
-          error: 'Invalid stake amount',
-          details: `lamports: ${transferLamports}`
-        }, { status: 400 })
-      }
-      
+      // Native SOL market (wrapped SOL)
+      // The Anchor program handles the SOL transfer internally via CPI
       console.log('Creating native SOL transaction:', {
         from: userPubkey.toBase58(),
-        to: vaultPda.toBase58(),
-        lamports: transferLamports,
-        sol: transferLamports / 1e9,
-        rawStakeLamports: rawStakeLamports.toString()
+        lamports: rawStakeLamports,
+        sol: Number(rawStakeLamports) / 1e9,
       })
       
-      // Create transaction with transfer instruction first (wallet needs to see this)
-      transaction = new Transaction()
-      
-      // Add SystemProgram transfer - this makes the amount visible to the wallet
-      // CRITICAL: Use proper number, not bigint
-      transaction.add(
-        SolanaSystemProgram.transfer({
-          fromPubkey: userPubkey,
-          toPubkey: vaultPda,
-          lamports: transferLamports,
-        })
-      )
-      
-      // Add the program instruction after the transfer
-      const programTx = await client.placePositionNative(
+      // Let the program handle the transfer internally (no manual transfer needed)
+      transaction = await client.placePositionNative(
         userPubkey,
         marketPda,
         selectedItemIndex,
         rawStakeLamports,
         BigInt(effectiveStakeForChain)
       )
-      transaction.add(...programTx.instructions)
     } else {
       // SPL token market
       const tokenProgram = TOKEN_PROGRAM_ID
