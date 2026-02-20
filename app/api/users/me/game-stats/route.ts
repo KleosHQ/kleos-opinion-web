@@ -9,16 +9,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'wallet query required' }, { status: 400 })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { wallet },
-      include: {
-        positions: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
-          include: { market: true },
+    let user
+    try {
+      user = await prisma.user.findUnique({
+        where: { wallet },
+        include: {
+          positions: {
+            take: 10,
+            orderBy: { createdAt: 'desc' },
+            include: { market: true },
+          },
         },
-      },
-    })
+      })
+    } catch (schemaError: any) {
+      // If User table doesn't exist or schema is out of sync, return defaults
+      if (schemaError?.code === 'P2022' || schemaError?.code === 'P2021' || schemaError?.message?.includes('does not exist')) {
+        console.warn('User table or schema not available. Run: pnpm prisma db push')
+        return NextResponse.json({
+          streak: 0,
+          streakBest: 0,
+          reputationMultiplier: 1,
+          totalEffectiveStaked: 0,
+          participationCount: 0,
+          recentMarkets: [],
+        })
+      }
+      throw schemaError
+    }
 
     if (!user) {
       return NextResponse.json({

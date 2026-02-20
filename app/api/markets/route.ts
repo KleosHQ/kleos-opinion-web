@@ -26,9 +26,27 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
     const wallet = searchParams.get('wallet')
 
-    const [onchainMarkets, dbMarkets, userPositionMarketIds] = await Promise.all([
-      fetchAllOnchainMarkets(SOLANA_RPC_URL),
-      prisma.market.findMany({
+    // Fetch DB markets and user positions first (these are reliable)
+    // Try to fetch with all fields first, fallback to basic fields if schema is out of sync
+    let dbMarkets: Array<{
+      marketId: bigint
+      title?: string | null
+      items?: any
+      participationCount: number
+      itemCount: number
+      startTs: bigint
+      endTs: bigint
+      status: MarketStatus
+      itemsHash: string
+      tokenMint: string
+      vault: string
+      totalRawStake: bigint
+      totalEffectiveStake: string
+      winningItemIndex: number | null
+    }>
+    
+    try {
+      dbMarkets = await prisma.market.findMany({
         select: {
           marketId: true,
           title: true,
@@ -45,11 +63,46 @@ export async function GET(request: NextRequest) {
           totalEffectiveStake: true,
           winningItemIndex: true,
         },
-      }),
-      wallet
-        ? prisma.position.findMany({ where: { user: wallet }, select: { market: { select: { marketId: true } } } }).then((ps) => ps.map((p) => p.market.marketId.toString()))
-        : [] as string[],
-    ])
+      })
+    } catch (schemaError: any) {
+      // If schema is out of sync (missing columns), fetch without optional fields
+      if (schemaError?.code === 'P2022' || schemaError?.message?.includes('does not exist')) {
+        console.warn('Database schema out of sync, fetching markets without optional fields. Run: pnpm prisma db push')
+        dbMarkets = await prisma.market.findMany({
+          select: {
+            marketId: true,
+            participationCount: true,
+            itemCount: true,
+            startTs: true,
+            endTs: true,
+            status: true,
+            itemsHash: true,
+            tokenMint: true,
+            vault: true,
+            totalRawStake: true,
+            totalEffectiveStake: true,
+            winningItemIndex: true,
+          },
+        }) as any
+        // Add null for missing fields
+        dbMarkets = dbMarkets.map(m => ({ ...m, title: null, items: null }))
+      } else {
+        throw schemaError
+      }
+    }
+
+    const userPositionMarketIds = wallet
+      ? await prisma.position.findMany({ where: { user: wallet }, select: { market: { select: { marketId: true } } } }).then((ps) => ps.map((p) => p.market.marketId.toString()))
+      : [] as string[]
+
+    // Try to fetch on-chain markets, but don't fail if RPC is unavailable
+    let onchainMarkets: Awaited<ReturnType<typeof fetchAllOnchainMarkets>> = []
+    try {
+      onchainMarkets = await fetchAllOnchainMarkets(SOLANA_RPC_URL)
+    } catch (rpcError) {
+      console.warn('Failed to fetch on-chain markets (RPC may be unavailable):', rpcError)
+      // Continue with DB-only markets
+    }
 
     const dbByMarketId = new Map(dbMarkets.map((m) => [m.marketId.toString(), m]))
     const onchainMarketIds = new Set(onchainMarkets.map((m) => m.marketId))
@@ -140,7 +193,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(markets)
   } catch (error) {
     console.error('Error fetching markets from on-chain:', error)
-    return NextResponse.json({ error: 'Failed to fetch markets' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
+    console.error('Error details:', { errorMessage, errorStack, error })
+    return NextResponse.json({ 
+      error: 'Failed to fetch markets',
+      details: errorMessage 
+    }, { status: 500 })
   }
 }
 

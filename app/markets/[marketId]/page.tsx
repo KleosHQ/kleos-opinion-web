@@ -753,11 +753,36 @@ export default function MarketDetailPage() {
                   <div className="space-y-2">
                     <Label className="text-sm">Stake (SOL)</Label>
                     <Input
-                      type="number"
-                      step="0.000000001"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       value={rawStake}
-                      onChange={(e) => setRawStake(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        // Allow empty, numbers, and single decimal point
+                        // Prevent multiple decimal points
+                        if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                          // Prevent more than 9 decimal places (lamports precision)
+                          const parts = value.split('.')
+                          if (parts.length === 1 || (parts.length === 2 && parts[1].length <= 9)) {
+                            setRawStake(value)
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        // Format on blur: remove trailing zeros and decimal point if not needed
+                        const value = e.target.value.trim()
+                        if (value === '' || value === '.') {
+                          setRawStake('')
+                          return
+                        }
+                        const num = parseFloat(value)
+                        if (!isNaN(num) && num > 0) {
+                          // Format to remove unnecessary trailing zeros, but keep up to 9 decimal places
+                          setRawStake(num.toString())
+                        } else {
+                          setRawStake('')
+                        }
+                      }}
                       placeholder="0.5"
                       className="max-w-[180px]"
                     />
