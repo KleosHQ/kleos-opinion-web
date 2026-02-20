@@ -13,6 +13,9 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { WalletInfoCard } from '@/components/WalletInfoCard'
+import { useSolanaClient } from '@/lib/solana/useSolanaClient'
 
 interface Market {
   id: string
@@ -33,10 +36,12 @@ interface Market {
 export default function Home() {
   const { connectSolanaWallet, connecting, ready, authenticated, logout } = useSolanaLogin()
   const { address: walletAddress, isConnected: isSolanaConnected } = useSolanaWallet()
+  const { connection } = useSolanaClient()
   const [markets, setMarkets] = useState<Market[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'Draft' | 'Open' | 'Closed' | 'Settled'>('all')
   const [onchainAdmin, setOnchainAdmin] = useState<string | null>(null)
+  const [walletPopoverOpen, setWalletPopoverOpen] = useState(false)
   const fetchingRef = useRef(false)
   const lastFilterRef = useRef<string | null>(null)
   const hasInitializedRef = useRef(false)
@@ -129,9 +134,24 @@ export default function Home() {
               <>
                 <StreakIndicator wallet={walletAddress} />
                 <WalletScoreBadge wallet={walletAddress} />
-                <span className="hidden sm:inline px-3 py-1.5 rounded-md border bg-card font-mono text-xs">
-                  {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
-                </span>
+                <Popover open={walletPopoverOpen} onOpenChange={setWalletPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <span 
+                      className="hidden sm:inline px-3 py-1.5 rounded-md border bg-card font-mono text-xs cursor-pointer hover:bg-accent transition-colors"
+                      onMouseEnter={() => setWalletPopoverOpen(true)}
+                    >
+                      {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
+                    </span>
+                  </PopoverTrigger>
+                  <PopoverContent 
+                    className="w-80" 
+                    align="end"
+                    onMouseEnter={() => setWalletPopoverOpen(true)}
+                    onMouseLeave={() => setWalletPopoverOpen(false)}
+                  >
+                    <WalletInfoCard walletAddress={walletAddress} connection={connection} />
+                  </PopoverContent>
+                </Popover>
                 <Button variant="ghost" size="sm" asChild>
                   <Link href="/positions">Positions</Link>
                 </Button>
