@@ -68,8 +68,8 @@ FAIRSCALE_API_KEY=...`}
         },
       }}
     >
-      <SolanaWalletGuard>{children}</SolanaWalletGuard>
-      <Toaster richColors position="bottom-right" />
+      <SolanaWalletGuard key="wallet-guard">{children}</SolanaWalletGuard>
+      <Toaster key="toaster" richColors position="bottom-right" />
     </PrivyProvider>
   )
 }
