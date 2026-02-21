@@ -7,8 +7,12 @@ import { PublicKey, Transaction } from '@solana/web3.js'
 import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
+  createSyncNativeInstruction,
+  NATIVE_MINT,
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
 } from '@solana/spl-token'
+import { SystemProgram } from '@solana/web3.js'
 import { getTokenProgramForMint } from '@/lib/utils/tokenProgram'
 import { useWallets } from '@privy-io/react-auth/solana'
 import bs58 from 'bs58'
@@ -226,98 +230,6 @@ export default function MarketDetailPage() {
         throw new Error('Solana wallet not found')
       }
       
-      // Check if market uses wrapped SOL and user has enough
-      if (market.tokenMint === 'So11111111111111111111111111111111111111112') {
-        const { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, createSyncNativeInstruction, NATIVE_MINT } = await import('@solana/spl-token')
-        const { SystemProgram: SolSystemProgram } = await import('@solana/web3.js')
-        const tokenMintPubkey = new PublicKey(market.tokenMint)
-        const userAta = await getAssociatedTokenAddress(tokenMintPubkey, publicKey)
-        
-        const ataInfo = await connection.getAccountInfo(userAta)
-        const requiredLamports = Math.floor(rawStakeNum * 1e9)
-        
-        if (!ataInfo) {
-          // Create wrapped SOL account and wrap SOL
-          toast.success('Wrapping SOL...', 'Creating wrapped SOL account and wrapping your SOL')
-          
-          const wrapTx = new Transaction()
-          
-          // Create ATA for wrapped SOL
-          wrapTx.add(
-            createAssociatedTokenAccountInstruction(
-              publicKey,
-              userAta,
-              publicKey,
-              NATIVE_MINT
-            )
-          )
-          
-          // Transfer SOL to the ATA (this wraps it)
-          wrapTx.add(
-            SolSystemProgram.transfer({
-              fromPubkey: publicKey,
-              toPubkey: userAta,
-              lamports: requiredLamports,
-            })
-          )
-          
-          // Sync native (finalize the wrapping)
-          wrapTx.add(createSyncNativeInstruction(userAta))
-          
-          const { blockhash: wrapBlockhash, lastValidBlockHeight: wrapLastValidBlockHeight } = await connection.getLatestBlockhash()
-          wrapTx.recentBlockhash = wrapBlockhash
-          wrapTx.feePayer = publicKey
-          
-          const wrapResult = await solanaWallet.signAndSendTransaction({
-            transaction: wrapTx.serialize({ requireAllSignatures: false, verifySignatures: false }),
-            chain: 'solana:devnet',
-          })
-          
-          const wrapSig = typeof wrapResult === 'string' ? wrapResult : bs58.encode(wrapResult.signature ?? wrapResult)
-          await connection.confirmTransaction({ signature: wrapSig, blockhash: wrapBlockhash, lastValidBlockHeight: wrapLastValidBlockHeight }, 'confirmed')
-          
-          toast.success('SOL wrapped successfully!', `Wrapped ${rawStakeNum} SOL`)
-        } else {
-          // Check if enough wrapped SOL
-          const tokenBalance = await connection.getTokenAccountBalance(userAta)
-          const balanceLamports = Number(tokenBalance.value.amount)
-          
-          if (balanceLamports < requiredLamports) {
-            // Need to wrap more SOL
-            toast.success('Wrapping additional SOL...', `Need to wrap ${(requiredLamports - balanceLamports) / 1e9} more SOL`)
-            
-            const additionalAmount = requiredLamports - balanceLamports
-            const wrapTx = new Transaction()
-            
-            // Transfer SOL to the ATA
-            wrapTx.add(
-              SolSystemProgram.transfer({
-                fromPubkey: publicKey,
-                toPubkey: userAta,
-                lamports: additionalAmount,
-              })
-            )
-            
-            // Sync native
-            wrapTx.add(createSyncNativeInstruction(userAta))
-            
-            const { blockhash: wrapBlockhash, lastValidBlockHeight: wrapLastValidBlockHeight } = await connection.getLatestBlockhash()
-            wrapTx.recentBlockhash = wrapBlockhash
-            wrapTx.feePayer = publicKey
-            
-            const wrapResult = await solanaWallet.signAndSendTransaction({
-              transaction: wrapTx.serialize({ requireAllSignatures: false, verifySignatures: false }),
-              chain: 'solana:devnet',
-            })
-            
-            const wrapSig = typeof wrapResult === 'string' ? wrapResult : bs58.encode(wrapResult.signature ?? wrapResult)
-            await connection.confirmTransaction({ signature: wrapSig, blockhash: wrapBlockhash, lastValidBlockHeight: wrapLastValidBlockHeight }, 'confirmed')
-            
-            toast.success('SOL wrapped successfully!', `Wrapped additional ${additionalAmount / 1e9} SOL`)
-          }
-        }
-      }
-      
       // Step 1: Calculate effective stake from backend
       const effectiveStakeResponse = await positionsApi.calculateEffectiveStake({
         wallet: walletAddress,
@@ -383,16 +295,94 @@ export default function MarketDetailPage() {
         throw apiError
       }
 
-      // Step 3: Backend has created the transaction, now sign and send it
+      // Step 3: Backend has created the transaction, now combine with wrapping if needed
       // (solanaWallet is already declared at the top of try block)
 
       // Deserialize transaction from backend
       const transactionBuffer = Buffer.from(validationResponse.data.transaction, 'base64')
       const transaction = Transaction.from(transactionBuffer)
       
+      // Check if market uses wrapped SOL and add wrapping instructions if needed
+      const wrappedSolMint = 'So11111111111111111111111111111111111111112'
+      const requiredLamports = Math.floor(rawStakeNum * 1e9)
+      let needsWrapping = false
+      let wrapInstructions: any[] = []
+      
+      if (market.tokenMint === wrappedSolMint) {
+        const tokenMintPubkey = new PublicKey(market.tokenMint)
+        const userAta = await getAssociatedTokenAddress(tokenMintPubkey, publicKey)
+        
+        const ataInfo = await connection.getAccountInfo(userAta)
+        
+        if (!ataInfo) {
+          // Need to create ATA and wrap SOL
+          needsWrapping = true
+          toast.success('Combining wrap and stake...', 'Wrapping SOL and placing position in one transaction')
+          
+          // Create ATA for wrapped SOL
+          wrapInstructions.push(
+            createAssociatedTokenAccountInstruction(
+              publicKey,
+              userAta,
+              publicKey,
+              NATIVE_MINT,
+              TOKEN_PROGRAM_ID,
+              ASSOCIATED_TOKEN_PROGRAM_ID
+            )
+          )
+          
+          // Transfer SOL to the ATA (this wraps it)
+          wrapInstructions.push(
+            SystemProgram.transfer({
+              fromPubkey: publicKey,
+              toPubkey: userAta,
+              lamports: requiredLamports,
+            })
+          )
+          
+          // Sync native (finalize the wrapping)
+          wrapInstructions.push(
+            createSyncNativeInstruction(userAta, TOKEN_PROGRAM_ID)
+          )
+        } else {
+          // Check if enough wrapped SOL
+          const tokenBalance = await connection.getTokenAccountBalance(userAta)
+          const balanceLamports = Number(tokenBalance.value.amount)
+          
+          if (balanceLamports < requiredLamports) {
+            // Need to wrap more SOL
+            needsWrapping = true
+            const additionalAmount = requiredLamports - balanceLamports
+            toast.success('Combining wrap and stake...', `Wrapping ${(additionalAmount / 1e9).toFixed(4)} SOL and placing position in one transaction`)
+            
+            // Transfer SOL to the ATA
+            wrapInstructions.push(
+              SystemProgram.transfer({
+                fromPubkey: publicKey,
+                toPubkey: userAta,
+                lamports: additionalAmount,
+              })
+            )
+            
+            // Sync native
+            wrapInstructions.push(
+              createSyncNativeInstruction(userAta, TOKEN_PROGRAM_ID)
+            )
+          }
+        }
+      }
+      
+      // Add wrapping instructions BEFORE the position instruction
+      if (needsWrapping && wrapInstructions.length > 0) {
+        // Insert wrapping instructions at the beginning
+        transaction.instructions.unshift(...wrapInstructions)
+      }
+      
       // Log transaction structure for debugging
-      console.log('Deserialized transaction:', {
+      console.log('Combined transaction:', {
         instructionsCount: transaction.instructions.length,
+        wrappingInstructions: needsWrapping ? wrapInstructions.length : 0,
+        positionInstructions: needsWrapping ? transaction.instructions.length - wrapInstructions.length : transaction.instructions.length,
         feePayer: transaction.feePayer?.toBase58(),
         instructions: transaction.instructions.map((ix, idx) => ({
           index: idx,
@@ -409,7 +399,11 @@ export default function MarketDetailPage() {
       
       const { blockhash, lastValidBlockHeight } = validationResponse.data
 
-      // Sign and send transaction
+      // Update blockhash and fee payer (in case wrapping instructions changed them)
+      transaction.recentBlockhash = blockhash
+      transaction.feePayer = publicKey
+
+      // Sign and send combined transaction
       const signResult = await solanaWallet.signAndSendTransaction({
         transaction: transaction.serialize({
           requireAllSignatures: false,
