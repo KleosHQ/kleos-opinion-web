@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { WalletInfoCard } from '@/components/WalletInfoCard'
 import { useSolanaClient } from '@/lib/solana/useSolanaClient'
+import { MarketCountdown } from '@/components/MarketCountdown'
 
 interface Market {
   id: string
@@ -256,10 +257,11 @@ export default function Home() {
                       <span className="text-foreground font-medium">{(Number(market.totalEffectiveStake) / 1e9).toFixed(2)} SOL</span>
                     </div>
                     <div className="pt-4 mt-4 border-t border-border space-y-1">
-                      <div className="text-muted-foreground text-xs">Start · End</div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatTimestamp(market.startTs)} — {formatTimestamp(market.endTs)}
-                      </div>
+                      <MarketCountdown
+                        startTs={market.startTs}
+                        endTs={market.endTs}
+                        status={market.status}
+                      />
                     </div>
                     {market.winningItemIndex !== null && (
                       <div className="pt-2 text-primary font-medium text-sm">

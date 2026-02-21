@@ -19,6 +19,7 @@ import bs58 from 'bs58'
 import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
 import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 import { MarketItemsDisplay } from '@/components/MarketItemsDisplay'
+import { MarketCountdown } from '@/components/MarketCountdown'
 import { marketsApi, positionsApi, protocolApi } from '@/lib/api'
 import { useSolanaClient } from '@/lib/solana/useSolanaClient'
 import { Button } from '@/components/ui/button'
@@ -708,6 +709,15 @@ export default function MarketDetailPage() {
 
         {/* Stats strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-8">
+          <div className="rounded-xl border bg-card p-4 col-span-2 sm:col-span-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Time</p>
+            <MarketCountdown
+              startTs={market.startTs}
+              endTs={market.endTs}
+              status={market.status}
+              className="justify-start"
+            />
+          </div>
           {market.status === 'Open' && market.phase && (
             <div className="rounded-xl border bg-card p-4">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Phase</p>
@@ -746,9 +756,13 @@ export default function MarketDetailPage() {
         <Card className="mb-6 overflow-hidden">
           <CardHeader className="pb-3">
             <h2 className="text-base font-semibold">Options</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {formatTimestamp(market.startTs)} — {formatTimestamp(market.endTs)}
-            </p>
+            <div className="mt-2">
+              <MarketCountdown
+                startTs={market.startTs}
+                endTs={market.endTs}
+                status={market.status}
+              />
+            </div>
           </CardHeader>
           <CardContent>
             <MarketItemsDisplay
