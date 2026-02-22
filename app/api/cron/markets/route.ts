@@ -52,8 +52,9 @@ function verifyCronRequest(request: NextRequest): boolean {
 }
 
 // GET /api/cron/markets
-// Auto-closes markets that have passed their end time
-// Auto-settles closed markets (determines winner by highest effective stake)
+// Auto-opens markets that have reached their start time (Draft -> Open)
+// Auto-closes markets that have passed their end time (Open -> Closed)
+// Auto-settles closed markets (determines winner by highest effective stake) (Closed -> Settled)
 export async function GET(request: NextRequest) {
   try {
     // Verify this is a legitimate cron request
@@ -63,12 +64,85 @@ export async function GET(request: NextRequest) {
 
     const currentTime = Math.floor(Date.now() / 1000)
     const results = {
+      opened: [] as string[],
       closed: [] as string[],
       settled: [] as string[],
       errors: [] as string[],
     }
 
-    // Step 1: Find markets that need to be closed (Open status, past end time)
+    // Get admin keypair for on-chain operations
+    const adminKeypair = getAdminKeypair()
+    const connection = new Connection(SOLANA_RPC_URL, 'confirmed')
+    const client = new KleosProtocolClient(connection)
+
+    // Step 1: Find markets that need to be opened (Draft status, past start time)
+    const marketsToOpen = await prisma.market.findMany({
+      where: {
+        status: MarketStatus.Draft,
+        startTs: {
+          lte: BigInt(currentTime),
+        },
+      },
+      select: {
+        id: true,
+        marketId: true,
+      },
+    })
+
+    console.log(`[Cron] Found ${marketsToOpen.length} markets to open`)
+
+    // Open markets (both on-chain and in DB)
+    for (const market of marketsToOpen) {
+      try {
+        // First, open on-chain if admin keypair is available
+        if (adminKeypair) {
+          try {
+            const [marketPda] = await getMarketPda(BigInt(market.marketId))
+            const openTransaction = await client.openMarket(adminKeypair.publicKey, marketPda)
+            
+            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+            openTransaction.recentBlockhash = blockhash
+            openTransaction.feePayer = adminKeypair.publicKey
+            openTransaction.sign(adminKeypair)
+            
+            const signature = await connection.sendRawTransaction(openTransaction.serialize(), {
+              skipPreflight: false,
+              maxRetries: 3,
+            })
+            
+            console.log(`[Cron] Sent open transaction for market ${market.marketId}: ${signature}`)
+            
+            await connection.confirmTransaction(
+              { signature, blockhash, lastValidBlockHeight },
+              'confirmed'
+            )
+            
+            console.log(`[Cron] Confirmed on-chain open for market ${market.marketId}`)
+          } catch (onchainError: any) {
+            const errorMsg = `Market ${market.marketId}: On-chain open failed: ${onchainError.message}`
+            results.errors.push(errorMsg)
+            console.error(`[Cron] ${errorMsg}`, onchainError)
+            // Continue to update DB even if on-chain open fails
+          }
+        } else {
+          console.warn(`[Cron] Admin keypair not available, skipping on-chain open for market ${market.marketId}`)
+        }
+
+        // Update DB status to Open
+        await prisma.market.update({
+          where: { id: market.id },
+          data: { status: MarketStatus.Open },
+        })
+        results.opened.push(market.marketId.toString())
+        console.log(`[Cron] Opened market ${market.marketId} in DB`)
+      } catch (error: any) {
+        const errorMsg = `Failed to open market ${market.marketId}: ${error.message}`
+        results.errors.push(errorMsg)
+        console.error(`[Cron] ${errorMsg}`)
+      }
+    }
+
+    // Step 2: Find markets that need to be closed (Open status, past end time)
     const marketsToClose = await prisma.market.findMany({
       where: {
         status: MarketStatus.Open,
@@ -83,11 +157,6 @@ export async function GET(request: NextRequest) {
     })
 
     console.log(`[Cron] Found ${marketsToClose.length} markets to close`)
-
-    // Get admin keypair for on-chain operations (needed for closing markets on-chain)
-    const adminKeypair = getAdminKeypair()
-    const connection = new Connection(SOLANA_RPC_URL, 'confirmed')
-    const client = new KleosProtocolClient(connection)
 
     // Close markets (both on-chain and in DB)
     for (const market of marketsToClose) {
@@ -140,7 +209,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Step 2: Find markets that need to be settled (Closed status, past end time, not already settled)
+    // Step 3: Find markets that need to be settled (Closed status, past end time, not already settled)
     const marketsToSettle = await prisma.market.findMany({
       where: {
         status: MarketStatus.Closed,
@@ -194,6 +263,22 @@ export async function GET(request: NextRequest) {
           errors: results.errors.length,
         },
         warning: 'Protocol not found, skipping settlement',
+      })
+    }
+
+    if (!adminKeypair) {
+      // Can't perform on-chain operations without admin keypair
+      return NextResponse.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        results,
+        summary: {
+          opened: results.opened.length,
+          closed: results.closed.length,
+          settled: results.settled.length,
+          errors: results.errors.length,
+        },
+        warning: 'Admin keypair not available, only DB updates performed',
       })
     }
 
@@ -428,6 +513,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
       results,
       summary: {
+        opened: results.opened.length,
         closed: results.closed.length,
         settled: results.settled.length,
         errors: results.errors.length,

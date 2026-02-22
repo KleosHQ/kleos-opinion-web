@@ -5,8 +5,9 @@ This document describes the automatic market closing and settling cron job.
 ## Overview
 
 The cron job automatically:
-1. **Closes markets** that have passed their end time (status: Open → Closed)
-2. **Settles markets** that are closed and determines the winner based on highest effective stake
+1. **Opens markets** that have reached their start time (status: Draft → Open)
+2. **Closes markets** that have passed their end time (status: Open → Closed)
+3. **Settles markets** that are closed and determines the winner based on highest effective stake
 
 ## Setup
 
@@ -63,13 +64,25 @@ If you need to run the cron job every 30 seconds (Vercel's minimum is 1 minute),
 
 ## How It Works
 
+### Auto-Open Markets
+
+1. Finds all markets with:
+   - Status: `Draft`
+   - `startTs <= currentTime`
+
+2. Opens them on-chain (calls `openMarket` instruction) if admin keypair is available
+
+3. Updates their status to `Open` in the database
+
 ### Auto-Close Markets
 
 1. Finds all markets with:
    - Status: `Open`
    - `endTs <= currentTime`
 
-2. Updates their status to `Closed` in the database
+2. Closes them on-chain (calls `closeMarket` instruction) if admin keypair is available
+
+3. Updates their status to `Closed` in the database
 
 ### Auto-Settle Markets
 
@@ -119,10 +132,11 @@ The cron endpoint returns a JSON response with:
 - `success`: Boolean indicating if the job completed
 - `timestamp`: When the job ran
 - `results`: Object with arrays of:
+  - `opened`: Market IDs that were opened
   - `closed`: Market IDs that were closed
   - `settled`: Market IDs that were settled
   - `errors`: Any errors encountered
-- `summary`: Counts of closed, settled, and errors
+- `summary`: Counts of opened, closed, settled, and errors
 
 Example response:
 ```json
@@ -130,11 +144,13 @@ Example response:
   "success": true,
   "timestamp": "2024-01-15T10:30:00.000Z",
   "results": {
+    "opened": ["3"],
     "closed": ["1", "2"],
     "settled": ["1"],
     "errors": []
   },
   "summary": {
+    "opened": 1,
     "closed": 2,
     "settled": 1,
     "errors": 0
