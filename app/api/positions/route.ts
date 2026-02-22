@@ -303,6 +303,22 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    // Add a generic memo to provide a clean transaction description (hides option number from wallet UI)
+    // Memo program address: MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr
+    try {
+      const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr')
+      const memoText = `Place position on market ${marketId}`
+      const memoInstruction = new Transaction().add({
+        keys: [{ pubkey: userPubkey, isSigner: true, isWritable: false }],
+        programId: MEMO_PROGRAM_ID,
+        data: Buffer.from(memoText, 'utf8'),
+      }).instructions[0]
+      transaction.add(memoInstruction)
+    } catch (memoError) {
+      // Memo program might not be available, continue without it
+      console.warn('Could not add memo instruction:', memoError)
+    }
+    
     // CRITICAL: Get recent blockhash and set fee payer BEFORE serialization
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
     

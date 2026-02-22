@@ -103,8 +103,14 @@ function decodeMarketAccount(data: Buffer | Uint8Array, pubkey: string) {
   const totalEffectiveStake = totalEffectiveStakeLow + (totalEffectiveStakeHigh << BigInt(64))
   offset += 16
 
-  // effectiveStakePerItem: [u128; 10] (160 bytes) – no winningItemIndex in Market struct
-  offset += 160
+  // effectiveStakePerItem: [u128; 10] (160 bytes) – each u128 is 16 bytes
+  const effectiveStakePerItem: bigint[] = []
+  for (let i = 0; i < 10; i++) {
+    const low = readBigUInt64LE(data, offset)
+    const high = readBigUInt64LE(data, offset + 8)
+    effectiveStakePerItem.push(low + (high << BigInt(64)))
+    offset += 16
+  }
 
   // protocolFeeAmount: u64
   const protocolFeeAmount = readBigUInt64LE(data, offset)
@@ -138,6 +144,7 @@ function decodeMarketAccount(data: Buffer | Uint8Array, pubkey: string) {
     status: status as 'Draft' | 'Open' | 'Closed' | 'Settled',
     totalRawStake: totalRawStake.toString(),
     totalEffectiveStake: totalEffectiveStake.toString(),
+    effectiveStakePerItem: effectiveStakePerItem.map(s => s.toString()),
     winningItemIndex: null as number | null, // Market struct has no winningItemIndex; DB stores it when settled
     tokenMint: tokenMint.toBase58(),
     vault: vault.toBase58(),
