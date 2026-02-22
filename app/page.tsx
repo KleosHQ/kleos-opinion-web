@@ -3,8 +3,6 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { marketsApi, protocolApi } from '@/lib/api'
-import { WalletScoreBadge } from '@/components/WalletScoreBadge'
-import { StreakIndicator } from '@/components/StreakIndicator'
 import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
 import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 import { Button } from '@/components/ui/button'
@@ -17,6 +15,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { WalletInfoCard } from '@/components/WalletInfoCard'
 import { useSolanaClient } from '@/lib/solana/useSolanaClient'
 import { MarketCountdown } from '@/components/MarketCountdown'
+import { TrendingUp, Shield, Zap, Award, Users, BarChart3, ArrowRight, CheckCircle2 } from 'lucide-react'
 
 interface Market {
   id: string
@@ -43,6 +42,7 @@ export default function Home() {
   const [filter, setFilter] = useState<'all' | 'Draft' | 'Open' | 'Closed' | 'Settled'>('all')
   const [onchainAdmin, setOnchainAdmin] = useState<string | null>(null)
   const [walletPopoverOpen, setWalletPopoverOpen] = useState(false)
+  const [showMarkets, setShowMarkets] = useState(false)
   const fetchingRef = useRef(false)
   const lastFilterRef = useRef<string | null>(null)
   const hasInitializedRef = useRef(false)
@@ -62,6 +62,13 @@ export default function Home() {
 
   // Normal users: Open only. Admin: all markets with filter.
   const effectiveFilter = isAdmin ? filter : 'Open'
+
+  // Auto-show markets when user connects wallet
+  useEffect(() => {
+    if (isSolanaConnected) {
+      setShowMarkets(true)
+    }
+  }, [isSolanaConnected])
 
   useEffect(() => {
     if (!ready) return
@@ -88,12 +95,7 @@ export default function Home() {
     }
 
     fetchMarkets()
-  }, [ready, effectiveFilter, walletAddress, isAdmin])
-
-  const formatTimestamp = (ts: string) => {
-    const timestamp = Number(ts) * 1000
-    return new Date(timestamp).toLocaleString()
-  }
+  }, [ready, effectiveFilter, walletAddress, isAdmin, isSolanaConnected])
 
   const getPhaseBadgeVariant = (phase: string) => {
     switch (phase) {
@@ -122,37 +124,40 @@ export default function Home() {
     )
   }
 
+  // Show landing page if user is not connected and no markets are shown yet
+  const showLanding = !isSolanaConnected && !showMarkets
+
   return (
     <main className="min-h-screen">
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <header className="flex items-center justify-between gap-4 mb-10 pb-6 border-b border-border min-h-[52px]">
-          <div className="flex-shrink-0">
+      {/* Navigation */}
+      <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight">Kleos</h1>
-            <p className="text-muted-foreground text-sm">Signal game — express conviction, build credibility</p>
+              <Badge variant="outline" className="text-xs">Beta</Badge>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0 flex-nowrap overflow-x-auto">
+            <div className="flex items-center gap-2">
             {isSolanaConnected && walletAddress ? (
               <>
-                <StreakIndicator wallet={walletAddress} />
-                <WalletScoreBadge wallet={walletAddress} />
-                <Popover open={walletPopoverOpen} onOpenChange={setWalletPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <span 
-                      className="hidden sm:inline px-3 py-1.5 rounded-md border bg-card font-mono text-xs cursor-pointer hover:bg-accent transition-colors"
+                  <Popover open={walletPopoverOpen} onOpenChange={setWalletPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <span 
+                        className="hidden sm:inline px-3 py-1.5 rounded-md border bg-card font-mono text-xs cursor-pointer hover:bg-accent transition-colors"
+                        onMouseEnter={() => setWalletPopoverOpen(true)}
+                      >
+                  {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
+                </span>
+                    </PopoverTrigger>
+                    <PopoverContent 
+                      className="w-80" 
+                      align="end"
                       onMouseEnter={() => setWalletPopoverOpen(true)}
+                      onMouseLeave={() => setWalletPopoverOpen(false)}
                     >
-                      {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
-                    </span>
-                  </PopoverTrigger>
-                  <PopoverContent 
-                    className="w-80" 
-                    align="end"
-                    onMouseEnter={() => setWalletPopoverOpen(true)}
-                    onMouseLeave={() => setWalletPopoverOpen(false)}
-                  >
-                    <WalletInfoCard walletAddress={walletAddress} connection={connection} />
-                  </PopoverContent>
-                </Popover>
+                      <WalletInfoCard walletAddress={walletAddress} connection={connection} />
+                    </PopoverContent>
+                  </Popover>
                 <Button variant="ghost" size="sm" asChild>
                   <Link href="/positions">Positions</Link>
                 </Button>
@@ -181,11 +186,227 @@ export default function Home() {
               </>
             ) : (
               <Button size="sm" onClick={connectSolanaWallet} disabled={connecting || !ready}>
-                {connecting ? 'Connecting…' : 'Connect Solana'}
-              </Button>
-            )}
+                  {connecting ? 'Connecting…' : 'Connect Wallet'}
+                </Button>
+              )}
+            </div>
           </div>
-        </header>
+        </div>
+      </nav>
+
+      {showLanding ? (
+        <>
+          {/* Hero Section */}
+          <section className="relative overflow-hidden border-b border-border">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-background" />
+            <div className="relative max-w-7xl mx-auto px-6 py-24 sm:py-32">
+              <div className="text-center">
+                <h1 className="text-5xl sm:text-6xl font-bold tracking-tight mb-6">
+                  Express Conviction,
+                  <br />
+                  <span className="text-primary">Build Credibility</span>
+                </h1>
+                <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
+                  Kleos is an on-chain opinion market where your reputation multiplies your influence. 
+                  The more credible you are, the more your stake matters.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <Button size="lg" onClick={connectSolanaWallet} disabled={connecting || !ready} className="text-lg px-8">
+                    {connecting ? 'Connecting…' : 'Get Started'}
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                  <Button size="lg" variant="outline" onClick={() => setShowMarkets(true)}>
+                    Explore Markets
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Features Section */}
+          <section className="py-24 border-b border-border">
+            <div className="max-w-7xl mx-auto px-6">
+              <div className="text-center mb-16">
+                <h2 className="text-3xl sm:text-4xl font-bold mb-4">Why Kleos?</h2>
+                <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                  Built on Solana for speed, transparency, and true ownership
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <Card className="border-2">
+                  <CardHeader>
+                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                      <TrendingUp className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="text-xl font-semibold">Reputation Multipliers</h3>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Your credibility score multiplies your effective stake. Build reputation over time and watch your influence grow.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-2">
+                  <CardHeader>
+                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                      <Shield className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="text-xl font-semibold">On-Chain & Transparent</h3>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      All markets and positions are stored on Solana. Fully transparent, verifiable, and trustless.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-2">
+                  <CardHeader>
+                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                      <Zap className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="text-xl font-semibold">Timing Matters</h3>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Early positions get timing multipliers. The earlier you signal, the more your stake is worth.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-2">
+                  <CardHeader>
+                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                      <Award className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="text-xl font-semibold">Win Rewards</h3>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      When markets settle, winners share the pool. Your effective stake determines your share of the rewards.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-2">
+                  <CardHeader>
+                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                      <Users className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="text-xl font-semibold">Build Streaks</h3>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Consistent winning builds your streak. Longer streaks unlock additional multipliers for your positions.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-2">
+                  <CardHeader>
+                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                      <BarChart3 className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="text-xl font-semibold">Track Performance</h3>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Monitor your credibility score, streak, and position history. See how your opinions perform over time.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </section>
+
+          {/* How It Works */}
+          <section className="py-24 border-b border-border bg-muted/30">
+            <div className="max-w-4xl mx-auto px-6">
+              <div className="text-center mb-16">
+                <h2 className="text-3xl sm:text-4xl font-bold mb-4">How It Works</h2>
+                <p className="text-lg text-muted-foreground">
+                  Simple steps to start predicting and earning
+                </p>
+              </div>
+              <div className="space-y-8">
+                <div className="flex gap-6">
+                  <div className="flex-shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg">
+                      1
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-2">Connect Your Wallet</h3>
+                    <p className="text-muted-foreground">
+                      Connect your Solana wallet (Phantom, Backpack, or any Solana wallet) to get started. Your wallet is your identity.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-6">
+                  <div className="flex-shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg">
+                      2
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-2">Browse Markets</h3>
+                    <p className="text-muted-foreground">
+                      Explore active opinion markets. Each market has multiple options and a countdown timer showing when it closes.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-6">
+                  <div className="flex-shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg">
+                      3
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-2">Place Your Position</h3>
+                    <p className="text-muted-foreground">
+                      Choose an option and stake SOL. Your effective stake is calculated based on your credibility, timing, and streak multipliers.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-6">
+                  <div className="flex-shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg">
+                      4
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-2">Win & Claim</h3>
+                    <p className="text-muted-foreground">
+                      When markets settle, if you picked the winning option, claim your share of the rewards based on your effective stake.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* CTA Section */}
+          <section className="py-24">
+            <div className="max-w-4xl mx-auto px-6 text-center">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">Ready to Start?</h2>
+              <p className="text-lg text-muted-foreground mb-8">
+                Connect your wallet and start expressing your opinions today
+              </p>
+              <Button size="lg" onClick={connectSolanaWallet} disabled={connecting || !ready} className="text-lg px-8">
+                {connecting ? 'Connecting…' : 'Connect Wallet & Get Started'}
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </div>
+          </section>
+        </>
+      ) : (
+        /* Markets Section - shown when user clicks "Explore Markets" or is connected */
+        <div id="markets" className="max-w-7xl mx-auto px-6 py-8">
+          <div className="mb-10">
+            <h2 className="text-3xl font-bold mb-2">Markets</h2>
+            <p className="text-muted-foreground">Browse and participate in opinion markets</p>
+          </div>
 
         {isAdmin && (
           <div className="flex gap-2 mb-6">
@@ -257,11 +478,11 @@ export default function Home() {
                       <span className="text-foreground font-medium">{(Number(market.totalEffectiveStake) / 1e9).toFixed(2)} SOL</span>
                     </div>
                     <div className="pt-4 mt-4 border-t border-border space-y-1">
-                      <MarketCountdown
-                        startTs={market.startTs}
-                        endTs={market.endTs}
-                        status={market.status}
-                      />
+                        <MarketCountdown
+                          startTs={market.startTs}
+                          endTs={market.endTs}
+                          status={market.status}
+                        />
                     </div>
                     {market.winningItemIndex !== null && (
                       <div className="pt-2 text-primary font-medium text-sm">
@@ -275,6 +496,7 @@ export default function Home() {
           </div>
         )}
       </div>
+      )}
     </main>
   )
 }

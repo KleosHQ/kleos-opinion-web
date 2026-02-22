@@ -1,6 +1,6 @@
 # Kleos Client
 
-A Next.js application for prediction markets with wallet authentication and position tracking.
+A Next.js application for opinion markets with wallet authentication and position tracking.
 
 ## Tech Stack
 

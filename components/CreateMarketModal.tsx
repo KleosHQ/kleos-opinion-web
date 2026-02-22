@@ -158,7 +158,7 @@ export function CreateMarketModal({ isOpen, onClose, onSuccess, protocolMarketCo
       <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col p-6">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Create Market</DialogTitle>
-          <DialogDescription>Add a new prediction market with items and timestamps</DialogDescription>
+          <DialogDescription>Add a new opinion market with items and timestamps</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-1 pr-1">
           <div className="space-y-2">

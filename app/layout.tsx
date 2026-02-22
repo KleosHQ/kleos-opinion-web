@@ -5,8 +5,8 @@ import './globals.css'
 export const dynamic = 'force-dynamic'
 
 export const metadata = {
-  title: 'Kleos | Prediction Markets',
-  description: 'On-chain prediction market protocol',
+  title: 'Kleos | Opinion Markets',
+  description: 'On-chain opinion market protocol',
 }
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

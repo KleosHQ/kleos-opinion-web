@@ -7,6 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Copy, Check, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { WalletScoreBadge } from '@/components/WalletScoreBadge'
+import { StreakIndicator } from '@/components/StreakIndicator'
 
 interface WalletInfoCardProps {
   walletAddress: string | null
@@ -74,6 +76,20 @@ export function WalletInfoCard({ walletAddress, connection, className }: WalletI
         <h2 className="text-base font-semibold">Wallet Info</h2>
       </div>
       <div className="space-y-4">
+        {/* Credibility Score */}
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">Credibility Score</p>
+          <WalletScoreBadge wallet={walletAddress} showLabel={false} />
+        </div>
+
+        {/* Streak */}
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">Streak</p>
+          <div className="min-h-[24px]">
+            <StreakIndicator wallet={walletAddress} compact={false} />
+          </div>
+        </div>
+
         {/* Balance */}
         <div className="space-y-1">
           <div className="flex items-center justify-between">

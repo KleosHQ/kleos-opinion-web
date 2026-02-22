@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { marketsApi, protocolApi } from '@/lib/api'
 import { MarketItemsInput } from '@/components/MarketItemsInput'
-import { WalletScoreBadge } from '@/components/WalletScoreBadge'
 import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
 import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
 import { calculateItemsHash } from '@/lib/utils/marketItems'
@@ -214,10 +213,9 @@ export default function CreateMarketPage() {
         <header className="flex items-center justify-between gap-6 mb-12 pb-8 border-b border-border min-h-[52px]">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Create Market</h1>
-            <p className="text-muted-foreground mt-1 text-sm">Add a new prediction market</p>
+            <p className="text-muted-foreground mt-1 text-sm">Add a new opinion market</p>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0 flex-nowrap">
-            <WalletScoreBadge wallet={walletAddress} />
             <div className="px-4 py-2 rounded-lg border bg-card font-mono text-sm">
               {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
             </div>

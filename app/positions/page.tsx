@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { StreakIndicator } from '@/components/StreakIndicator'
 import { toast } from '@/lib/utils/toast'
 
 interface Position {
@@ -136,7 +135,6 @@ export default function PositionsPage() {
         <header className="flex justify-between items-center mb-8 pb-6 border-b border-border">
           <h1 className="text-2xl font-bold tracking-tight">Your Positions</h1>
           <div className="flex items-center gap-3">
-            <StreakIndicator wallet={walletAddress} />
             <div className="px-4 py-2 rounded-lg border bg-card font-mono text-sm">
               {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
             </div>
