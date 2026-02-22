@@ -40,6 +40,7 @@ export async function GET(
         endTs: dbMarket.endTs?.toString() ?? '0',
         totalRawStake: dbMarket.totalRawStake?.toString() ?? '0',
         totalEffectiveStake: dbMarket.totalEffectiveStake ?? '0',
+        effectiveStakePerItem: [], // DB fallback: empty array (will be calculated from positions if needed)
         tokenMint: dbMarket.tokenMint ?? '',
         vault: dbMarket.vault ?? '',
         winningItemIndex: dbMarket.winningItemIndex ?? null,
