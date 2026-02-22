@@ -258,6 +258,7 @@ export async function GET(request: NextRequest) {
         timestamp: new Date().toISOString(),
         results,
         summary: {
+          opened: results.opened.length,
           closed: results.closed.length,
           settled: results.settled.length,
           errors: results.errors.length,
