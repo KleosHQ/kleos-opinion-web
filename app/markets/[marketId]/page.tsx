@@ -13,24 +13,17 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { SystemProgram } from "@solana/web3.js";
-import { getTokenProgramForMint } from "@/lib/utils/tokenProgram";
 import { useWallets } from "@privy-io/react-auth/solana";
 import bs58 from "bs58";
 import { useSolanaWallet } from "@/lib/hooks/useSolanaWallet";
 import { useSolanaLogin } from "@/lib/hooks/useSolanaLogin";
-import { MarketItemsDisplay } from "@/components/MarketItemsDisplay";
 import { MarketCountdown } from "@/components/MarketCountdown";
 import { marketsApi, positionsApi, protocolApi } from "@/lib/api";
 import { useSolanaClient } from "@/lib/solana/useSolanaClient";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/lib/utils/toast";
 import { cn } from "@/lib/utils";
-import { MarketStatus } from "@/lib/solana/generated/types";
 import { EditMarketModal } from "@/components/EditMarketModal";
 
 interface Market {
@@ -94,17 +87,8 @@ export default function MarketDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
-    // Only fetch if ready and not already fetching
-    if (!ready || fetchingRef.current) {
-      return;
-    }
-
-    // Skip if marketId hasn't changed
-    if (lastMarketIdRef.current === marketId) {
-      return;
-    }
-
-    // Mark as fetching
+    if (!ready || fetchingRef.current) return;
+    if (lastMarketIdRef.current === marketId) return;
     fetchingRef.current = true;
     lastMarketIdRef.current = marketId;
 
@@ -255,7 +239,6 @@ export default function MarketDetailPage() {
       return;
     }
 
-    // Validate stake amounts
     const rawStakeNum = Number(rawStake);
 
     if (rawStakeNum <= 0) {
@@ -265,7 +248,6 @@ export default function MarketDetailPage() {
 
     setPlacingPosition(true);
     try {
-      // Get wallet first (needed for wrapped SOL transactions)
       const solanaWallet = wallets.find(
         (w) =>
           w.address &&
@@ -276,7 +258,6 @@ export default function MarketDetailPage() {
         throw new Error("Solana wallet not found");
       }
 
-      // Step 1: Calculate effective stake from backend
       const effectiveStakeResponse = await positionsApi.calculateEffectiveStake(
         {
           wallet: walletAddress,
@@ -287,7 +268,6 @@ export default function MarketDetailPage() {
 
       const calculatedEffectiveStake =
         effectiveStakeResponse.data.effectiveStake;
-      // effectiveStakeLamports is already in lamports (integer)
       const effectiveStakeLamports =
         effectiveStakeResponse.data.effectiveStakeLamports ??
         Math.floor(calculatedEffectiveStake * 1e9);
@@ -299,19 +279,6 @@ export default function MarketDetailPage() {
       const calculationTimestamp =
         effectiveStakeResponse.data.calculationTimestamp;
 
-      console.log("Effective Stake Calculation:", {
-        rawStake: rawStakeNum,
-        effectiveStake: calculatedEffectiveStake,
-        effectiveStakeLamports,
-        fairscore,
-        reputationMultiplier,
-        timingMultiplier,
-        calculationTimestamp,
-      });
-
-      // Step 2: Validate with backend and get transaction (includes effective stake validation)
-      // effectiveStakeLamports is already an integer in lamports, just convert to string
-      // Pass calculationTimestamp so backend uses the same timestamp for consistency
       let validationResponse;
       try {
         validationResponse = await positionsApi.create({
@@ -320,53 +287,25 @@ export default function MarketDetailPage() {
           selectedItemIndex: selectedItem,
           rawStake: rawStakeNum.toString(),
           effectiveStake: String(effectiveStakeLamports),
-          calculationTimestamp, // Pass timestamp to ensure backend uses same time
+          calculationTimestamp,
         });
 
         if (!validationResponse.data.success) {
           const errorMsg = validationResponse.data.error || "Validation failed";
-          const errorDetails = validationResponse.data;
-          console.error("Validation failed:", errorDetails);
           throw new Error(
             typeof errorMsg === "string" ? errorMsg : JSON.stringify(errorMsg),
           );
         }
       } catch (apiError: any) {
-        // Log the full error response for debugging
-        console.error("Full API error object:", {
-          message: apiError?.message,
-          response: apiError?.response,
-          responseData: apiError?.response?.data,
-          responseStatus: apiError?.response?.status,
-          responseHeaders: apiError?.response?.headers,
-          request: apiError?.request,
-          config: apiError?.config,
-        });
-        if (apiError?.response?.data) {
-          console.error(
-            "Backend API error response:",
-            JSON.stringify(apiError.response.data, null, 2),
-          );
-          console.error("Status:", apiError.response.status);
-        } else {
-          console.error(
-            "No response data in error - might be network error or empty response",
-          );
-        }
         throw apiError;
       }
 
-      // Step 3: Backend has created the transaction, now combine with wrapping if needed
-      // (solanaWallet is already declared at the top of try block)
-
-      // Deserialize transaction from backend
       const transactionBuffer = Buffer.from(
         validationResponse.data.transaction,
         "base64",
       );
       const transaction = Transaction.from(transactionBuffer);
 
-      // Check if market uses wrapped SOL and add wrapping instructions if needed
       const wrappedSolMint = "So11111111111111111111111111111111111111112";
       const requiredLamports = Math.floor(rawStakeNum * 1e9);
       let needsWrapping = false;
@@ -382,14 +321,12 @@ export default function MarketDetailPage() {
         const ataInfo = await connection.getAccountInfo(userAta);
 
         if (!ataInfo) {
-          // Need to create ATA and wrap SOL
           needsWrapping = true;
           toast.success(
             "Combining wrap and stake...",
             "Wrapping SOL and placing position in one transaction",
           );
 
-          // Create ATA for wrapped SOL
           wrapInstructions.push(
             createAssociatedTokenAccountInstruction(
               publicKey,
@@ -401,7 +338,6 @@ export default function MarketDetailPage() {
             ),
           );
 
-          // Transfer SOL to the ATA (this wraps it)
           wrapInstructions.push(
             SystemProgram.transfer({
               fromPubkey: publicKey,
@@ -410,17 +346,14 @@ export default function MarketDetailPage() {
             }),
           );
 
-          // Sync native (finalize the wrapping)
           wrapInstructions.push(
             createSyncNativeInstruction(userAta, TOKEN_PROGRAM_ID),
           );
         } else {
-          // Check if enough wrapped SOL
           const tokenBalance = await connection.getTokenAccountBalance(userAta);
           const balanceLamports = Number(tokenBalance.value.amount);
 
           if (balanceLamports < requiredLamports) {
-            // Need to wrap more SOL
             needsWrapping = true;
             const additionalAmount = requiredLamports - balanceLamports;
             toast.success(
@@ -428,7 +361,6 @@ export default function MarketDetailPage() {
               `Wrapping ${(additionalAmount / 1e9).toFixed(4)} SOL and placing position in one transaction`,
             );
 
-            // Transfer SOL to the ATA
             wrapInstructions.push(
               SystemProgram.transfer({
                 fromPubkey: publicKey,
@@ -437,7 +369,6 @@ export default function MarketDetailPage() {
               }),
             );
 
-            // Sync native
             wrapInstructions.push(
               createSyncNativeInstruction(userAta, TOKEN_PROGRAM_ID),
             );
@@ -445,40 +376,14 @@ export default function MarketDetailPage() {
         }
       }
 
-      // Add wrapping instructions BEFORE the position instruction
       if (needsWrapping && wrapInstructions.length > 0) {
-        // Insert wrapping instructions at the beginning
         transaction.instructions.unshift(...wrapInstructions);
       }
 
-      // Log transaction structure for debugging
-      console.log("Combined transaction:", {
-        instructionsCount: transaction.instructions.length,
-        wrappingInstructions: needsWrapping ? wrapInstructions.length : 0,
-        positionInstructions: needsWrapping
-          ? transaction.instructions.length - wrapInstructions.length
-          : transaction.instructions.length,
-        feePayer: transaction.feePayer?.toBase58(),
-        instructions: transaction.instructions.map((ix, idx) => ({
-          index: idx,
-          programId: ix.programId.toBase58(),
-          keys: ix.keys.map((k) => ({
-            pubkey: k.pubkey.toBase58(),
-            isSigner: k.isSigner,
-            isWritable: k.isWritable,
-          })),
-          dataLength: ix.data.length,
-          data: Array.from(ix.data).slice(0, 10), // First 10 bytes
-        })),
-      });
-
       const { blockhash, lastValidBlockHeight } = validationResponse.data;
-
-      // Update blockhash and fee payer (in case wrapping instructions changed them)
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
 
-      // Sign and send combined transaction
       const signResult = await solanaWallet.signAndSendTransaction({
         transaction: transaction.serialize({
           requireAllSignatures: false,
@@ -492,7 +397,6 @@ export default function MarketDetailPage() {
       const signature =
         typeof sigValue === "string" ? sigValue : bs58.encode(sigValue);
 
-      // Wait for confirmation
       await connection.confirmTransaction(
         {
           signature,
@@ -502,7 +406,6 @@ export default function MarketDetailPage() {
         "confirmed",
       );
 
-      // Save to DB only after successful on-chain tx
       const pos = validationResponse.data.position;
       const dbMarketId = validationResponse.data.dbMarketId;
       const breakdown = validationResponse.data.breakdown;
@@ -527,11 +430,6 @@ export default function MarketDetailPage() {
       setSelectedItem(null);
       fetchMarket();
     } catch (error: any) {
-      console.error("Error placing position:", error);
-      // Log the full error response if available
-      if (error?.response?.data) {
-        console.error("Backend error response:", error.response.data);
-      }
       toast.fromApiOrProgramError(error, "Failed to place position");
     } finally {
       setPlacingPosition(false);
@@ -543,39 +441,20 @@ export default function MarketDetailPage() {
     return new Date(timestamp).toLocaleString();
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case MarketStatus[MarketStatus.Open]:
-      case "Open":
-        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/40";
-      case MarketStatus[MarketStatus.Closed]:
-      case "Closed":
-        return "bg-amber-500/20 text-amber-400 border-amber-500/40";
-      case MarketStatus[MarketStatus.Settled]:
-      case "Settled":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/40";
-      case MarketStatus[MarketStatus.Draft]:
-      case "Draft":
-        return "bg-muted text-muted-foreground";
-      default:
-        return "bg-muted text-muted-foreground";
-    }
-  };
-
   if (!ready || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-          <Skeleton className="h-9 w-32 mb-8 rounded-md" />
+      <div className="min-h-screen bg-kleos-bg">
+        <div className="max-w-md mx-auto px-5 pt-14">
+          <Skeleton className="h-9 w-32 mb-8 rounded-md bg-kleos-bg-card" />
           <div className="space-y-6">
-            <Skeleton className="h-12 w-full max-w-xl rounded-lg" />
-            <Skeleton className="h-6 w-24 rounded-full" />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4">
-              {[1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-20 rounded-xl" />
+            <Skeleton className="h-12 w-full rounded-2xl bg-kleos-bg-card" />
+            <Skeleton className="h-6 w-24 rounded-full bg-kleos-bg-card" />
+            <div className="flex gap-3 rounded-2xl overflow-hidden border border-kleos-border bg-kleos-bg-card p-4">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-16 flex-1 rounded-xl bg-kleos-bg-elevated" />
               ))}
             </div>
-            <Skeleton className="h-48 rounded-xl" />
+            <Skeleton className="h-48 rounded-2xl bg-kleos-bg-card" />
           </div>
         </div>
       </div>
@@ -584,23 +463,23 @@ export default function MarketDetailPage() {
 
   if (!market) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/30 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-kleos-bg px-4">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4 opacity-50">📋</div>
-          <h1 className="text-2xl font-semibold text-foreground mb-2">
+          <h1 className="text-2xl font-bold font-secondary text-white mb-2">
             Market not found
           </h1>
-          <p className="text-muted-foreground text-sm mb-2">
+          <p className="text-kleos-text-muted text-sm mb-2">
             Market ID{" "}
-            <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">
+            <code className="px-1.5 py-0.5 rounded bg-kleos-bg-card font-mono text-xs text-white/80">
               {marketId}
             </code>{" "}
             doesn’t exist or couldn’t be loaded.
           </p>
-          <p className="text-muted-foreground text-sm mb-8">
+          <p className="text-kleos-text-subtle text-sm mb-8">
             It may not be on-chain yet or the RPC may be unavailable.
           </p>
-          <Button asChild size="lg">
+          <Button asChild size="lg" className="bg-kleos-primary text-kleos-bg font-semibold rounded-full">
             <Link href="/">← Back to Markets</Link>
           </Button>
         </div>
@@ -835,78 +714,85 @@ export default function MarketDetailPage() {
   };
 
   return (
-    <main className="min-h-screen bg-black pb-20">
-      <div className="max-w-md mx-auto px-5 pt-14">
-        {/* Back navigation */}
+    <main className="min-h-screen bg-kleos-bg pb-24">
+      <div className="max-w-md mx-auto px-5 pt-6">
         <button
           onClick={() => router.back()}
           className="mb-6 flex items-center group"
         >
-          <span className="text-[#9945FF] text-xl leading-none font-bold group-hover:-translate-x-1 transition-transform">
+          <span className="text-kleos-primary text-xl leading-none font-bold group-hover:-translate-x-1 transition-transform">
             ‹
           </span>
-          <span className="text-[#9945FF] font-semibold text-base ml-1">
+          <span className="text-kleos-primary font-semibold text-base ml-1">
             Back
           </span>
         </button>
 
-        {/* Hero: title + status */}
-        <h1 className="text-3xl font-bold text-white mb-3 tracking-tight leading-tight">
+        <h1 className="text-3xl font-bold capitalize text-white mb-3 tracking-tight leading-tight">
           {market.title || `Market #${market.marketId}`}
         </h1>
 
         <div className="flex items-center gap-3 mt-1 mb-6">
-          {market.status === "Open" && (
-            <MarketCountdown
-              startTs={market.startTs}
-              endTs={market.endTs}
-              status={market.status}
-            />
+        {market.status === "Open" && (
+            <>
+              <div className="w-px bg-white/10" />
+              <div className="flex-1 flex flex-col justify-center py-2 px-4 text-center min-w-0">
+                <span className="text-white font-secondary font-bold text-3xl mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
+                  <MarketCountdown
+                    startTs={market.startTs}
+                    endTs={market.endTs}
+                    status={market.status}
+                    variant="plain"
+                  />
+                </span>
+              </div>
+            </>
           )}
           {market.status === "Settled" && (
-            <div className="px-3 py-1 rounded-full bg-[#1C1C1E] border border-white/10">
-              <span className="text-white/60 text-xs font-bold uppercase tracking-widest">
+            <div className="px-3 py-1 rounded-full bg-kleos-bg-card border border-kleos-border">
+              <span className="text-kleos-text-muted text-xs font-bold uppercase tracking-widest">
                 Resolved
               </span>
             </div>
           )}
         </div>
 
-        {/* Floating Stats Pill */}
-        <div className="flex items-center justify-between bg-black/40 py-5 px-2 rounded-[32px] border border-white/10 shadow-sm mt-2 mb-8">
-          <div className="flex flex-col items-center flex-1">
-            <span className="text-white font-bold text-xl">
-              {market.itemCount}
-            </span>
-            <span className="text-white/50 text-[10px] uppercase font-bold tracking-widest mt-1">
+        <div className="flex items-stretch gap-0 w-full mt-4 mb-8 rounded-2xl overflow-hidden border border-kleos-border bg-white/[0.03]">
+          <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center">
+            <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
               Options
             </span>
+            <span className="text-white font-secondary font-bold text-xl mt-0.5">
+              {market.itemCount}
+            </span>
           </div>
-          <div className="w-[1px] h-10 bg-white/10" />
-          <div className="flex flex-col items-center flex-1">
-            <span className="text-white font-bold text-xl">
+          <div className="w-px bg-white/10" />
+          <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center">
+            <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
+              Positions
+            </span>
+            <span className="text-white font-secondary font-bold text-xl mt-0.5">
               {market.positionsCount}
             </span>
-            <span className="text-white/50 text-[10px] uppercase font-bold tracking-widest mt-1">
-              Stakes
-            </span>
           </div>
-          <div className="w-[1px] h-10 bg-white/10" />
-          <div className="flex flex-col items-center flex-1">
-            <span className="text-white font-bold text-xl">
-              {(Number(market.totalRawStake) / 1e9).toFixed(1)}
-            </span>
-            <span className="text-white/50 text-[10px] uppercase font-bold tracking-widest mt-1">
+          <div className="w-px bg-white/10" />
+          <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center">
+            <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
               Pool
+            </span>
+            <span className="text-white font-secondary font-bold text-xl mt-0.5 whitespace-nowrap">
+              {market.totalRawStake
+                ? (Number(market.totalRawStake) / 1e9).toFixed(2)
+                : "0.00"}{" "}
+              SOL
             </span>
           </div>
         </div>
 
-        {/* Your position (when present) */}
         {userPosition && (
           <div className="mb-4">
-            <div className="p-4 rounded-3xl border border-[#9945FF]/30 bg-black">
-              <p className="text-[#A1A1A9] text-xs mb-1">Your position</p>
+            <div className="p-4 rounded-2xl border border-kleos-border bg-kleos-bg-card">
+              <p className="text-kleos-text-muted text-xs mb-1">Your position</p>
               <p className="text-white font-semibold">
                 #{userPosition.selectedItemIndex} —{" "}
                 {(Number(userPosition.effectiveStake) / 1e9).toFixed(2)} SOL
@@ -916,7 +802,7 @@ export default function MarketDetailPage() {
                 !userPosition.claimed &&
                 userPosition.selectedItemIndex === market.winningItemIndex && (
                   <button
-                    className="mt-4 w-full bg-[#9945FF] text-white font-semibold py-3 rounded-xl disabled:opacity-50 transition-opacity hover:opacity-90"
+                    className="mt-4 w-full bg-kleos-primary text-kleos-bg font-semibold py-3 rounded-xl disabled:opacity-50 transition-opacity hover:opacity-90"
                     onClick={() => handleClaimPayout(userPosition.id)}
                     disabled={claiming}
                   >
@@ -927,56 +813,51 @@ export default function MarketDetailPage() {
           </div>
         )}
 
-        {/* Place position (open + no position) */}
         {market.status === "Open" && !userPosition && (
           <div className="mb-8 mt-6">
             <h2 className="text-lg font-bold text-white mb-4">
               Pick your champion
             </h2>
 
-            {/* Options list native style */}
             <div className="flex flex-col gap-3">
               {market.items
                 ? market.items.map((itemName, index) => (
                     <button
                       key={index}
                       onClick={() => setSelectedItem(index)}
-                      className={`p-5 rounded-[32px] border-2 transition-colors text-left flex justify-between items-center ${
+                      className={cn(
+                        "p-5 rounded-2xl border-2 transition-colors text-left flex justify-between items-center",
                         selectedItem === index
-                          ? "border-[#9945FF] bg-[#9945FF]/10"
-                          : "border-white/5 bg-[#1C1C1E] hover:border-white/20"
-                      }`}
+                          ? "bg-emerald-500/20 border-emerald-400 text-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.25)]"
+                          : "border-white/10 bg-kleos-bg-card hover:border-white/20 text-white"
+                      )}
                     >
-                      <span
-                        className={`font-semibold text-lg ${selectedItem === index ? "text-white" : "text-white/70"}`}
-                      >
+                      <span className="font-semibold text-lg">
                         {itemName}
                       </span>
                       {selectedItem === index && (
-                        <div className="w-5 h-5 rounded-full bg-[#9945FF] flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-full bg-emerald-400 flex items-center justify-center">
                           <span className="text-white text-xs">✓</span>
                         </div>
                       )}
                     </button>
                   ))
-                : // Fallback rendering
-                  Array.from({ length: market.itemCount }).map((_, index) => (
+                : Array.from({ length: market.itemCount }).map((_, index) => (
                     <button
                       key={index}
                       onClick={() => setSelectedItem(index)}
-                      className={`p-5 rounded-[32px] border-2 transition-colors text-left flex justify-between items-center ${
+                      className={cn(
+                        "p-5 rounded-2xl border-2 transition-colors text-left flex justify-between items-center",
                         selectedItem === index
-                          ? "border-[#9945FF] bg-[#9945FF]/10"
-                          : "border-white/5 bg-[#1C1C1E] hover:border-white/20"
-                      }`}
+                          ? "bg-emerald-500/20 border-emerald-400 text-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.25)]"
+                          : "border-white/10 bg-kleos-bg-card hover:border-white/20 text-white"
+                      )}
                     >
-                      <span
-                        className={`font-semibold text-lg ${selectedItem === index ? "text-white" : "text-white/70"}`}
-                      >
+                      <span className="font-semibold text-lg">
                         Item #{index}
                       </span>
                       {selectedItem === index && (
-                        <div className="w-5 h-5 rounded-full bg-[#9945FF] flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-full bg-emerald-400 flex items-center justify-center">
                           <span className="text-white text-xs">✓</span>
                         </div>
                       )}
@@ -989,20 +870,23 @@ export default function MarketDetailPage() {
                 Amount (SOL)
               </h2>
 
-              {/* Quick amount chips */}
               <div className="flex flex-wrap gap-2 mb-4">
                 {["0.1", "0.5", "1", "5"].map((a) => (
                   <button
                     key={a}
                     onClick={() => setRawStake(a)}
-                    className={`px-5 py-3 rounded-2xl border transition-colors ${
+                    className={cn(
+                      "px-5 py-3 rounded-2xl border transition-colors",
                       rawStake === a
-                        ? "bg-[#9945FF]/20 border-[#9945FF]"
-                        : "bg-[#1C1C1E] border-white/5 hover:bg-white/5"
-                    }`}
+                        ? "bg-emerald-500/20 border-emerald-400"
+                        : "bg-kleos-bg-card border-kleos-border hover:bg-kleos-bg-elevated"
+                    )}
                   >
                     <span
-                      className={`font-bold ${rawStake === a ? "text-[#9945FF]" : "text-white/80"}`}
+                      className={cn(
+                        "font-bold",
+                        rawStake === a ? "text-emerald-400" : "text-white/80"
+                      )}
                     >
                       {a}
                     </span>
@@ -1010,9 +894,8 @@ export default function MarketDetailPage() {
                 ))}
               </div>
 
-              {/* Stake input container */}
-              <div className="bg-[#1C1C1E] rounded-[32px] border border-white/5 px-6 py-5">
-                <p className="text-white/50 text-[10px] uppercase font-bold tracking-widest mb-3">
+              <div className="bg-kleos-bg-card rounded-2xl border border-kleos-border px-6 py-5">
+                <p className="text-kleos-text-muted text-[10px] uppercase font-bold tracking-widest mb-3">
                   Raw stake (SOL)
                 </p>
                 <input
@@ -1045,22 +928,21 @@ export default function MarketDetailPage() {
                     }
                   }}
                   placeholder="0.00"
-                  className="bg-transparent border-none text-white text-4xl font-semibold p-0 focus:outline-none focus:ring-0 w-full placeholder:text-[#64748b]"
+                  className="bg-transparent border-none text-white text-4xl font-semibold p-0 focus:outline-none focus:ring-0 w-full placeholder:text-kleos-text-subtle"
                 />
               </div>
 
-              {/* Effective Stake preview styling */}
               {rawStake && Number(rawStake) > 0 && selectedItem !== null && (
-                <div className="bg-[#1C1C1E] rounded-[32px] border border-white/5 px-6 py-5 mt-3 animate-fade-in">
+                <div className="bg-kleos-bg-card rounded-2xl border border-kleos-border px-6 py-5 mt-3 animate-fade-in">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-white/50 text-[10px] uppercase font-bold tracking-widest">
+                    <span className="text-kleos-text-muted text-[10px] uppercase font-bold tracking-widest">
                       Effective stake
                     </span>
-                    <span className="text-[#9945FF]/80 text-xs font-bold uppercase tracking-widest">
+                    <span className="text-emerald-400/80 text-xs font-bold uppercase tracking-widest">
                       Multiplier Applied
                     </span>
                   </div>
-                  <p className="text-[#9945FF] text-2xl font-semibold">
+                  <p className="text-emerald-400 text-2xl font-semibold">
                     ~{(Number(rawStake) * 1.5).toFixed(2)} SOL
                   </p>
                 </div>
@@ -1069,7 +951,7 @@ export default function MarketDetailPage() {
 
             {!authenticated || !isSolanaConnected ? (
               <button
-                className="w-full bg-[#1C1C1E] border border-white/10 text-white font-bold py-4 rounded-2xl hover:bg-white/5 transition-colors"
+                className="w-full bg-kleos-bg-card border border-kleos-border text-white font-bold py-4 rounded-2xl hover:bg-kleos-bg-elevated transition-colors"
                 onClick={connectSolanaWallet}
                 disabled={connecting || !ready}
               >
@@ -1084,15 +966,16 @@ export default function MarketDetailPage() {
                   !rawStake ||
                   Number(rawStake) <= 0
                 }
-                className="w-full bg-[#9945FF] text-white font-bold py-4 rounded-2xl disabled:opacity-50 disabled:bg-[#1C1C1E] disabled:text-white/40 transition-all"
+                
+                className="w-full bg-kleos-primary text-kleos-bg font-bold py-4 rounded-2xl disabled:opacity-50 disabled:bg-kleos-bg-card disabled:text-kleos-text-muted transition-all"
               >
                 {placingPosition ? "Placing…" : "Stake & Lock"}
               </button>
             )}
+            
           </div>
         )}
 
-        {/* Rankings/Contenders Fallback display */}
         {!userPosition && market.status !== "Open" && market.items && (
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-white mb-3">
@@ -1102,11 +985,11 @@ export default function MarketDetailPage() {
               {market.items.map((item, index) => (
                 <div
                   key={index}
-                  className="p-3 bg-[#1C1C1E] rounded-xl border border-white/5"
+                  className="p-3 bg-kleos-bg-card rounded-xl border border-kleos-border"
                 >
                   <span className="text-white font-medium">{item}</span>
                   {market.winningItemIndex === index && (
-                    <span className="text-[#9945FF] text-xs ml-2">
+                    <span className="text-emerald-400 text-xs ml-2">
                       • Winner
                     </span>
                   )}
@@ -1116,20 +999,18 @@ export default function MarketDetailPage() {
           </div>
         )}
 
-        {/* Closed / settled, no position */}
         {market.status !== "Open" && !userPosition && (
-          <div className="mb-6 p-8 text-center bg-[#1C1C1E] rounded-3xl border border-white/5">
-            <p className="text-sm text-[#A1A1A9]">
+          <div className="mb-6 p-8 text-center bg-kleos-bg-card rounded-2xl border border-kleos-border">
+            <p className="text-sm text-kleos-text-muted">
               This market is {market.status.toLowerCase()}. Betting is only
               available when it’s open.
             </p>
           </div>
         )}
 
-        {/* Admin: Draft / Open / Closed */}
         {isAdmin && (
-          <div className="mt-8 p-5 bg-[#9945FF]/5 border border-[#9945FF]/30 rounded-3xl">
-            <h2 className="text-base font-semibold text-[#9945FF] mb-3">
+          <div className="mt-8 p-5 bg-kleos-bg-elevated border border-kleos-border rounded-2xl">
+            <h2 className="text-base font-semibold text-kleos-primary mb-3">
               Admin Panel
             </h2>
             <div className="flex flex-wrap gap-2">
@@ -1137,14 +1018,14 @@ export default function MarketDetailPage() {
                 <>
                   <button
                     onClick={() => setShowEditModal(true)}
-                    className="px-4 py-2 bg-[#1C1C1E] text-white rounded-xl text-sm border border-white/10"
+                    className="px-4 py-2 bg-kleos-bg-card text-white rounded-xl text-sm border border-kleos-border"
                   >
                     Edit market
                   </button>
                   <button
                     onClick={handleOpenMarket}
                     disabled={opening}
-                    className="px-4 py-2 bg-[#9945FF] text-white rounded-xl text-sm font-medium"
+                    className="px-4 py-2 bg-kleos-primary text-kleos-bg rounded-xl text-sm font-medium"
                   >
                     {opening ? "Opening…" : "Open market"}
                   </button>
@@ -1171,7 +1052,12 @@ export default function MarketDetailPage() {
                     <button
                       key={i}
                       type="button"
-                      className={`px-4 py-2 rounded-xl text-sm font-medium border ${winningItem === i ? "bg-[#9945FF] text-white border-[#9945FF]" : "bg-[#1C1C1E] text-white/70 border-white/10"}`}
+                      className={cn(
+                      "px-4 py-2 rounded-xl text-sm font-medium border",
+                      winningItem === i
+                        ? "bg-kleos-primary text-kleos-bg border-kleos-primary"
+                        : "bg-kleos-bg-card text-white/70 border-kleos-border"
+                    )}
                       onClick={() => setWinningItem(i)}
                     >
                       {i}
@@ -1181,7 +1067,7 @@ export default function MarketDetailPage() {
                 <button
                   onClick={handleSettleMarket}
                   disabled={settling || winningItem === null}
-                  className="px-4 py-2 bg-[#9945FF] disabled:opacity-50 text-white rounded-xl text-sm font-medium"
+                  className="px-4 py-2 bg-kleos-primary text-kleos-bg disabled:opacity-50 rounded-xl text-sm font-medium"
                 >
                   {settling ? "Settling…" : "Settle Market"}
                 </button>
@@ -1190,12 +1076,11 @@ export default function MarketDetailPage() {
           </div>
         )}
 
-        {/* Optional tech details */}
         <details className="mt-8 group">
-          <summary className="text-xs text-[#A1A1A9] cursor-pointer list-none py-2 hover:text-white transition-colors">
+          <summary className="text-xs text-kleos-text-muted cursor-pointer list-none py-2 hover:text-white transition-colors">
             Technical details
           </summary>
-          <div className="mt-2 rounded-2xl border border-white/5 bg-[#1C1C1E] p-4 font-mono text-[10px] text-[#A1A1A9] break-all space-y-1">
+          <div className="mt-2 rounded-2xl border border-kleos-border bg-kleos-bg-card p-4 font-mono text-[10px] text-kleos-text-muted break-all space-y-1">
             <p>
               <span className="text-white/50">Token:</span> {market.tokenMint}
             </p>

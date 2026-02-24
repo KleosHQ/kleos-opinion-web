@@ -239,14 +239,14 @@ export default function Home() {
                   }}
                 />
               </button>
-              <Link
+              {/* <Link
                 href="/positions"
                 prefetch
                 className="p-1.5 rounded-full bg-transparent hover:bg-white/5 transition-colors"
                 aria-label="Portfolio"
               >
                 <Wallet className="w-4 h-4" style={{ color: "#a3a3a3" }} />
-              </Link>
+              </Link> */}
             </div>
             </div>
           </header>

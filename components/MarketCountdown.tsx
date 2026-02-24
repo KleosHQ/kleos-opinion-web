@@ -135,8 +135,8 @@ export function MarketCountdown({ startTs, endTs, status, className, variant = '
 
   return (
     <div className={cn('flex items-center gap-2', className)}>
-      <span className="text-xs text-muted-foreground">{label}:</span>
-      <Badge variant={getBadgeVariant()} className="font-mono text-xs">
+      {/* <span className="text-xs text-muted-foreground">{label}:</span> */}
+      <Badge variant={getBadgeVariant()} className="font-mono text-xs ">
         {formatTime()}
       </Badge>
     </div>
