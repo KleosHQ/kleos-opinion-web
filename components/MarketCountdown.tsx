@@ -9,9 +9,11 @@ interface MarketCountdownProps {
   endTs: string | number
   status: 'Draft' | 'Open' | 'Closed' | 'Settled'
   className?: string
+  /** When true, renders plain "5d 21h 51m 53s" text without badge */
+  variant?: 'default' | 'plain'
 }
 
-export function MarketCountdown({ startTs, endTs, status, className }: MarketCountdownProps) {
+export function MarketCountdown({ startTs, endTs, status, className, variant = 'default' }: MarketCountdownProps) {
   const [timeRemaining, setTimeRemaining] = useState<{
     days: number
     hours: number
@@ -95,10 +97,10 @@ export function MarketCountdown({ startTs, endTs, status, className }: MarketCou
 
   const { days, hours, minutes, seconds, label } = timeRemaining
 
-  // Format the countdown
+  // Format the countdown (full format: 5d 21h 51m 53s)
   const formatTime = () => {
     if (days > 0) {
-      return `${days}d ${hours}h ${minutes}m`
+      return `${days}d ${hours}h ${minutes}m ${seconds}s`
     } else if (hours > 0) {
       return `${hours}h ${minutes}m ${seconds}s`
     } else if (minutes > 0) {
@@ -109,7 +111,7 @@ export function MarketCountdown({ startTs, endTs, status, className }: MarketCou
   }
 
   // Determine color based on urgency
-  const getVariant = () => {
+  const getBadgeVariant = () => {
     const totalSeconds = timeRemaining.total
     if (totalSeconds < 3600) {
       // Less than 1 hour - urgent (red)
@@ -123,10 +125,18 @@ export function MarketCountdown({ startTs, endTs, status, className }: MarketCou
     }
   }
 
+  if (variant === 'plain') {
+    return (
+      <span className={cn('font-mono', className)}>
+        {formatTime()}
+      </span>
+    )
+  }
+
   return (
     <div className={cn('flex items-center gap-2', className)}>
       <span className="text-xs text-muted-foreground">{label}:</span>
-      <Badge variant={getVariant()} className="font-mono text-xs">
+      <Badge variant={getBadgeVariant()} className="font-mono text-xs">
         {formatTime()}
       </Badge>
     </div>

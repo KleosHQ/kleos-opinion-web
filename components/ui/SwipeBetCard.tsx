@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 
-// Adjust based on the actual API types expected
 interface Market {
   id: string;
   marketId: string;
@@ -18,7 +17,7 @@ interface Market {
   totalRawStake: string;
   positionsCount: number;
   winningItemIndex: number | null;
-  items?: any[]; // Optional: if options data is pre-fetched
+  items?: string[] | any[]; // Option names from API
 }
 
 interface SwipeBetCardProps {
@@ -36,11 +35,13 @@ export function SwipeBetCard({
   onPressCard,
   loadingOptions = false,
 }: SwipeBetCardProps) {
-  // Use either pre-populated items from feed OR assume a generic count if we don't have them yet.
-  // Ideally, options should be fetched or included in the list view.
+  // Use items from API: string[] (option names) or {name, id}[] or fallback to generic
   const displayItems =
-    market.items?.map((i) => i.name || `Option ${i.id || "?"}`) ||
-    Array.from({ length: market.itemCount }).map((_, i) => `Option ${i + 1}`);
+    Array.isArray(market.items) && market.items.length > 0
+      ? market.items.map((i) =>
+          typeof i === "string" ? i : (i as any).name || `Option ${(i as any).id ?? "?"}`
+        )
+      : Array.from({ length: market.itemCount }).map((_, i) => `Option ${i + 1}`);
 
   return (
     <div

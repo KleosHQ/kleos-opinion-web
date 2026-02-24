@@ -14,6 +14,8 @@ interface SwipeDeckProps<T> {
   renderCard: (item: T) => React.ReactNode;
   onSwipeLeft?: (item: T) => void;
   onSwipeRight?: (item: T) => void;
+  /** If provided, swipe right only completes when this returns true. Otherwise snaps back. */
+  canSwipeRight?: (item: T) => boolean;
   onSwipedAll?: () => void;
   keyExtractor: (item: T) => string;
 }
@@ -25,6 +27,7 @@ export function SwipeDeck<T>({
   renderCard,
   onSwipeLeft,
   onSwipeRight,
+  canSwipeRight,
   onSwipedAll,
   keyExtractor,
 }: SwipeDeckProps<T>) {
@@ -51,7 +54,19 @@ export function SwipeDeck<T>({
       info.offset.x < -SWIPE_THRESHOLD || info.velocity.x < -800;
 
     if (isSwipeRight) {
-      // Animate card offscreen to the right
+      const currentItem = data[currentIndex];
+      if (canSwipeRight && !canSwipeRight(currentItem)) {
+        // Snap back - swipe right not allowed
+        controls.start({
+          x: 0,
+          opacity: 1,
+          transition: { type: "spring", stiffness: 300, damping: 20 },
+        });
+        return;
+      }
+      // Fire bet flow immediately so wallet signature prompt appears right away (same as grid stake)
+      if (onSwipeRight) onSwipeRight(currentItem);
+      // Animate card offscreen to the right (in parallel)
       await controls.start({
         x: 500,
         opacity: 0,
@@ -78,7 +93,7 @@ export function SwipeDeck<T>({
 
   const handleNext = (direction: number) => {
     const currentItem = data[currentIndex];
-    if (direction > 0 && onSwipeRight) onSwipeRight(currentItem);
+    // onSwipeRight is called immediately in handleDragEnd for instant wallet prompt
     if (direction < 0 && onSwipeLeft) onSwipeLeft(currentItem);
 
     setCurrentIndex((prev) => {
