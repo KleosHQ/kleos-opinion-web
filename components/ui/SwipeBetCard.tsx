@@ -1,7 +1,7 @@
 "use client";
 
 import { MarketCountdown } from "@/components/MarketCountdown";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
@@ -46,107 +46,96 @@ export function SwipeBetCard({
   return (
     <div
       onClick={onPressCard}
-      className="w-full h-full max-h-[500px] cursor-pointer"
+      className="w-full h-full max-h-[800px] cursor-pointer"
     >
-      <Card className="h-full flex flex-col justify-between bg-[#1C1C1E] border-white/10 shadow-lg text-white rounded-[32px] overflow-hidden transition-colors hover:border-white/20 px-4 py-2 sm:p-6 p-6">
-        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-          <div className="flex justify-between items-start mb-4">
-            <h2 className="font-semibold text-xl flex-1 mr-3 leading-tight line-clamp-3">
+      <Card className="h-full flex flex-col bg-[#1C1C1E] border-white/10 shadow-lg text-white rounded-[32px] overflow-hidden transition-colors hover:border-white/20 p-6">
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex justify-between items-start gap-3 mb-3">
+            <h2 className="capitalize font-bold text-2xl sm:text-3xl flex-1 leading-tight line-clamp-3">
               {market.title || `Market #${market.marketId}`}
             </h2>
-            <Badge
-              variant="outline"
-              className={cn(
-                "px-2 py-0.5 whitespace-nowrap text-xs font-medium",
-                market.status === "Open"
-                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                  : "bg-white/5 text-muted-foreground border-white/10",
-              )}
-            >
-              {market.status === "Open" ? "Live" : "Resolved"}
-            </Badge>
           </div>
 
-          <p className="text-white/50 text-sm font-medium mt-1 mb-6">
+          <p className="text-white/60 text-base font-medium mb-5">
             {market.itemCount} contenders
           </p>
 
-          {/* Options List */}
           {displayItems && displayItems.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <span className="text-white text-xs font-semibold mb-1 uppercase tracking-wider">
-                Select your pick:
-              </span>
-              {displayItems.map((itemName, idx) => (
-                <button
-                  key={idx}
-                  onClick={(e) => {
-                    e.stopPropagation(); // Prevent card press when selecting option
-                    onSelectOption(idx);
-                  }}
-                  className={cn(
-                    "text-left px-4 py-3 rounded-xl border transition-all text-sm sm:text-base font-semibold",
-                    selectedOptionIndex === idx
-                      ? "bg-primary border-primary text-primary-foreground shadow-[0_0_15px_rgba(22,163,74,0.3)] scale-[1.02]"
-                      : "bg-black/50 border-white/10 text-white/80 hover:bg-black/80 hover:border-white/20",
-                  )}
-                >
-                  {itemName}
-                </button>
-              ))}
+            <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
+              {/* <span className="text-white/90 text-sm font-semibold uppercase tracking-wider shrink-0">
+                Select your pick
+              </span> */}
+              <div className="flex flex-col gap-3 flex-1">
+                {displayItems.map((itemName, idx) => (
+                  <button
+                    key={idx}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectOption(idx);
+                    }}
+                    className={cn(
+                      "text-left px-5 py-4 rounded-2xl border-2 transition-all text-base font-semibold min-h-[52px] flex items-center",
+                      selectedOptionIndex === idx
+                        ? "bg-emerald-500/20 border-emerald-400 text-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.25)]"
+                        : "bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20",
+                    )}
+                  >
+                    {itemName}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : loadingOptions ? (
-            <div className="py-12 flex flex-col items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <p className="text-white/50 italic text-center text-sm mt-3">
-                Loading options...
-              </p>
+            <div className="flex-1 flex flex-col items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+              <p className="text-white/50 text-base mt-4">Loading options…</p>
             </div>
           ) : (
-            <div className="py-12 items-center justify-center">
-              <p className="text-white/50 italic text-center text-sm">
-                No options available
-              </p>
+            <div className="flex-1 flex items-center justify-center py-12">
+              <p className="text-white/50 text-base">No options available</p>
             </div>
           )}
         </div>
 
-        {/* Bottom Stats Footer */}
-        <div className="flex flex-row justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5 mt-6 shrink-0 backdrop-blur-md">
-          <div className="flex flex-col">
-            <span className="text-white/50 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">
+        <div className="flex items-stretch gap-0 mt-5 shrink-0 rounded-t-2xl overflow-hidden border border-white/10 bg-white/[0.03]">
+          <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center">
+            <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
               Positions
             </span>
-            <span className="text-white font-bold text-sm sm:text-base">
+            <span className="text-white font-secondary font-bold text-xl mt-0.5">
               {market.positionsCount}
             </span>
           </div>
-          <div className="flex flex-col items-end">
-            <span className="text-white/50 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">
+          <div className="w-px bg-white/10" />
+          <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center">
+            <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
               Pool
             </span>
-            <span className="text-white font-bold text-sm sm:text-base">
+            <span className="text-white font-secondary font-bold text-xl mt-0.5 whitespace-nowrap">
               {market.totalRawStake
                 ? (Number(market.totalRawStake) / 1e9).toFixed(2)
                 : "0.00"}{" "}
               SOL
             </span>
           </div>
-          {market.status === "Open" && (
-            <div className="flex flex-col items-end pl-4 border-l border-white/10">
-              <span className="text-white/50 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">
-                Ends
-              </span>
-              <div className="text-white font-bold scale-90 sm:scale-100 origin-right">
-                <MarketCountdown
-                  startTs={market.startTs}
-                  endTs={market.endTs}
-                  status={market.status}
-                />
-              </div>
-            </div>
-          )}
         </div>
+        <div className="flex items-stretch gap-0 shrink-0 rounded-b-2xl overflow-hidden border border-white/10 bg-white/[0.03]">
+          {market.status === "Open" && (
+            <>
+              <div className="w-px bg-white/10" />
+              <div className="flex-1 flex flex-col justify-center py-2 px-4 text-center min-w-0">
+                <span className="text-white font-secondary font-bold text-3xl mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
+                  <MarketCountdown
+                    startTs={market.startTs}
+                    endTs={market.endTs}
+                    status={market.status}
+                    variant="plain"
+                  />
+                </span>
+              </div>
+            </>
+          )}
+          </div>
       </Card>
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { marketsApi, protocolApi } from "@/lib/api";
@@ -13,8 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { MarketCard } from "@/components/MarketCard";
 import { LayoutGrid, Layers, Wallet } from "lucide-react";
-import { SwipeDeck } from "@/components/ui/SwipeDeck";
-import { SwipeBetCard } from "@/components/ui/SwipeBetCard";
+import { SwipeView } from "@/components/SwipeView";
 
 interface Market {
   id: string;
@@ -78,7 +77,6 @@ export default function Home() {
 
   useEffect(() => {
     if (!ready) return;
-    // Only fetch markets when user is authenticated and has Solana wallet connected
     if (!authenticated || !isSolanaConnected) {
       setMarkets([]);
       return;
@@ -108,6 +106,37 @@ export default function Home() {
     fetchMarkets();
   }, [ready, authenticated, effectiveFilter, walletAddress, isAdmin, isSolanaConnected]);
 
+  const handleSwipeRight = useCallback(
+    async (m: Market) => {
+      if (m.status !== "Open") return;
+      const selectedIdx = selections[m.id];
+      if (selectedIdx == null) return;
+      const amount = parseFloat(quickBetAmount || "0");
+      if (amount <= 0) {
+        toast.error("Enter a valid amount");
+        return;
+      }
+      const rawLamports = Math.floor(amount * 1e9);
+      const success = await placeQuickBet(
+        { marketId: m.marketId, tokenMint: m.tokenMint },
+        selectedIdx,
+        rawLamports
+      );
+      if (success) {
+        setSelections((prev) => {
+          const next = { ...prev };
+          delete next[m.id];
+          return next;
+        });
+      }
+    },
+    [quickBetAmount, selections, placeQuickBet]
+  );
+
+  const handleSelectOption = useCallback((marketId: string, idx: number) => {
+    setSelections((prev) => ({ ...prev, [marketId]: idx }));
+  }, []);
+
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-kleos-bg">
@@ -116,14 +145,12 @@ export default function Home() {
     );
   }
 
-  // Show landing when wallet is disconnected; show main app only when authenticated AND Solana wallet connected
   const showLanding = !authenticated || !isSolanaConnected;
 
   return (
-    <main className="min-h-screen bg-kleos-bg pb-24">
+    <main className={showLanding ? "h-screen overflow-hidden bg-kleos-bg" : "min-h-screen bg-kleos-bg pb-24"}>
       {showLanding ? (
-        /* Landing - matches mobile app/(auth)/index.tsx exactly */
-        <section className="min-h-screen flex flex-col justify-between py-4 px-6 bg-kleos-bg">
+        <section className="fixed inset-0 flex flex-col justify-between py-4 px-6 bg-kleos-bg overflow-hidden">
           <div className="flex items-center justify-center px-4 py-2">
             <div className="w-[40vw] min-w-[120px] max-w-[180px] aspect-[40/14] relative">
               <Image
@@ -132,7 +159,8 @@ export default function Home() {
                 fill
                 className="object-contain"
                 priority
-                sizes="40vw"
+                fetchPriority="high"
+                sizes="(max-width: 640px) 40vw, 180px"
               />
             </div>
           </div>
@@ -161,12 +189,9 @@ export default function Home() {
           </div>
         </section>
       ) : (
-        /* Markets Section */
         <div className="max-w-md mx-auto px-4 sm:px-5 pt-6 pb-12">
-          {/* Header */}
-          {/* Header - matches mobile layout */}
           <header className="flex items-center justify-between mb-4 pb-4">
-            <h1 className="text-2xl font-bold text-white">Markets</h1>
+            <h1 className="text-2xl font-bold font-secondary text-white">Markets</h1>
             <div className="flex items-center gap-3">
               {viewMode === "swipe" && (
                 <div className="flex items-center gap-2 bg-kleos-bg-card border border-kleos-border rounded-lg px-3 py-1.5">
@@ -216,6 +241,7 @@ export default function Home() {
               </button>
               <Link
                 href="/positions"
+                prefetch
                 className="p-1.5 rounded-full bg-transparent hover:bg-white/5 transition-colors"
                 aria-label="Portfolio"
               >
@@ -225,7 +251,6 @@ export default function Home() {
             </div>
           </header>
 
-          {/* Filter pills - matches mobile: active=kleos-primary, inactive=bg-card */}
           <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
             {(
               [
@@ -266,62 +291,15 @@ export default function Home() {
               ))}
             </div>
           ) : (
-            <div className="pb-12">
-              <p className="text-kleos-text-subtle text-xs text-center mb-4">
-                Select an option, then swipe right to quick bet · Swipe left to skip
-              </p>
-              <SwipeDeck
-                data={markets}
-                keyExtractor={(m) => m.id}
-                canSwipeRight={(m) => {
-                  if (m.status !== "Open") return false;
-                  const selectedIdx = selections[m.id];
-                  return selectedIdx != null;
-                }}
-                onSwipeLeft={(m) => {
-                  /* Skip - no action needed */
-                }}
-                onSwipeRight={async (m) => {
-                  if (m.status !== "Open") return;
-                  const selectedIdx = selections[m.id];
-                  if (selectedIdx == null) return;
-
-                  const amount = parseFloat(quickBetAmount || "0");
-                  if (amount <= 0) {
-                    toast.error("Enter a valid amount");
-                    return;
-                  }
-
-                  const rawLamports = Math.floor(amount * 1e9);
-                  const success = await placeQuickBet(
-                    { marketId: m.marketId, tokenMint: m.tokenMint },
-                    selectedIdx,
-                    rawLamports
-                  );
-                  if (success) {
-                    setSelections((prev) => {
-                      const next = { ...prev };
-                      delete next[m.id];
-                      return next;
-                    });
-                  }
-                }}
-                renderCard={(m) => (
-                  <div className="w-full h-full p-2">
-                    <SwipeBetCard
-                      market={m as any}
-                      selectedOptionIndex={selections[m.id] ?? null}
-                      onSelectOption={(idx) =>
-                        setSelections((prev) => ({ ...prev, [m.id]: idx }))
-                      }
-                      onPressCard={() => {
-                        window.location.href = `/markets/${m.marketId}`;
-                      }}
-                    />
-                  </div>
-                )}
-              />
-            </div>
+            <SwipeView
+              markets={markets}
+              selections={selections}
+              onSelectOption={handleSelectOption}
+              onSwipeRight={handleSwipeRight as (m: { id: string; marketId: string; status: string }) => Promise<void>}
+              onPressCard={(marketId) => {
+                window.location.href = `/markets/${marketId}`;
+              }}
+            />
           )}
         </div>
       )}

@@ -1,7 +1,22 @@
 import type { ReactNode } from "react";
+import localFont from "next/font/local";
+import { Inter } from "next/font/google";
 import ClientProviders from "./ClientProviders";
 import { BottomBarWrapper } from "@/components/BottomBarWrapper";
 import "./globals.css";
+import { ViewTransitions } from "next-view-transitions";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const ntBrickSans = localFont({
+  src: "../font/NTBrickSans/NTBrickSans.ttf",
+  variable: "--font-ntbrick",
+  display: "swap",
+});
 
 export const dynamic = "force-dynamic";
 
@@ -14,25 +29,15 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" className="dark">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Press+Start+2P&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="bg-background text-foreground antialiased">
+    <ViewTransitions>
+    <html lang="en" className={`dark ${inter.variable} ${ntBrickSans.variable}`}>
+      <body className="bg-background text-foreground antialiased font-sans">
         <ClientProviders>
           {children}
           <BottomBarWrapper />
         </ClientProviders>
       </body>
     </html>
+    </ViewTransitions>
   );
 }

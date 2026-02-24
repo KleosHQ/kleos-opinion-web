@@ -1,14 +1,8 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { MarketCountdown } from "@/components/MarketCountdown";
-
-function formatPoolSol(lamports: string | number): string {
-  const n = typeof lamports === "string" ? Number(lamports) : lamports;
-  if (n >= 1e9) return (n / 1e9).toFixed(2);
-  if (n >= 1e6) return (n / 1e9).toFixed(4);
-  return (n / 1e9).toFixed(6);
-}
 
 export interface MarketCardMarket {
   id: string;
@@ -27,7 +21,7 @@ interface MarketCardProps {
   className?: string;
 }
 
-export function MarketCard({ market, className = "" }: MarketCardProps) {
+export const MarketCard = React.memo(function MarketCard({ market, className = "" }: MarketCardProps) {
   return (
     <Link
       href={`/markets/${market.marketId}`}
@@ -39,38 +33,39 @@ export function MarketCard({ market, className = "" }: MarketCardProps) {
 
         {/* Content */}
         <div className="relative p-6 flex flex-col items-center z-10">
-          <h2 className="text-white text-2xl font-bold text-center mb-3 leading-snug line-clamp-3">
+          <h2 className="text-white capitalize text-2xl font-bold text-center mb-3 leading-snug line-clamp-3">
             {market.title || `Market #${market.marketId}`}
           </h2>
 
-          {/* Metrics */}
-          <div className="flex flex-row items-center justify-center bg-black/40 self-center px-6 py-3 rounded-full border border-white/10 mt-2 shadow-sm">
-            <div className="flex flex-col items-center px-2">
-              <span className="text-white font-bold text-base">
-                {market.itemCount}
-              </span>
-              <span className="text-white/50 text-[9px] uppercase font-bold tracking-widest mt-0.5">
+          {/* Metrics - matches SwipeBetCard footer */}
+          <div className="flex items-stretch gap-0 w-full mt-4 rounded-2xl overflow-hidden border border-white/10 bg-white/[0.03]">
+            <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center">
+              <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
                 Options
               </span>
+              <span className="text-white font-secondary font-bold text-xl mt-0.5">
+                {market.itemCount}
+              </span>
             </div>
-            <div className="w-[1px] h-6 bg-white/10 mx-2" />
-            <div className="flex flex-col items-center px-2">
-              <span className="text-white font-bold text-base">
+            <div className="w-px bg-white/10" />
+            <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center">
+              <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
+                Positions
+              </span>
+              <span className="text-white font-secondary font-bold text-xl mt-0.5">
                 {market.positionsCount}
               </span>
-              <span className="text-white/50 text-[9px] uppercase font-bold tracking-widest mt-0.5">
-                Stakes
-              </span>
             </div>
-            <div className="w-[1px] h-6 bg-white/10 mx-2" />
-            <div className="flex flex-col items-center px-2">
-              <span className="text-white font-bold text-base">
-                {market.totalRawStake
-                  ? formatPoolSol(market.totalRawStake)
-                  : "0.000000"}
+            <div className="w-px bg-white/10" />
+            <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center">
+              <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
+                Pool
               </span>
-              <span className="text-white/50 text-[9px] uppercase font-bold tracking-widest mt-0.5">
-                Pool (SOL)
+              <span className="text-white font-secondary font-bold text-xl mt-0.5 whitespace-nowrap">
+                {market.totalRawStake
+                  ? (Number(market.totalRawStake) / 1e9).toFixed(2)
+                  : "0.00"}{" "}
+                SOL
               </span>
             </div>
           </div>
@@ -104,4 +99,4 @@ export function MarketCard({ market, className = "" }: MarketCardProps) {
       </div>
     </Link>
   );
-}
+});

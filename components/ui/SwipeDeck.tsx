@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useLayoutEffect } from "react";
 import {
   motion,
   useMotionValue,
@@ -14,7 +14,6 @@ interface SwipeDeckProps<T> {
   renderCard: (item: T) => React.ReactNode;
   onSwipeLeft?: (item: T) => void;
   onSwipeRight?: (item: T) => void;
-  /** If provided, swipe right only completes when this returns true. Otherwise snaps back. */
   canSwipeRight?: (item: T) => boolean;
   onSwipedAll?: () => void;
   keyExtractor: (item: T) => string;
@@ -32,20 +31,17 @@ export function SwipeDeck<T>({
   keyExtractor,
 }: SwipeDeckProps<T>) {
   const [currentIndex, setCurrentIndex] = useState(0);
-
-  // We only track drag on the top card
   const x = useMotionValue(0);
-
-  // Rotates the card slightly as it is dragged left/right
   const rotate = useTransform(x, [-300, 300], [-8, 8]);
-  // Fades out the card slightly as it gets near the edges
   const opacity = useTransform(x, [-400, -200, 0, 200, 400], [0, 1, 1, 1, 0]);
-
-  // Transforms for the NEXT card sitting behind it
   const nextCardScale = useTransform(x, [-300, 0, 300], [1, 0.92, 1]);
   const nextCardOpacity = useTransform(x, [-300, 0, 300], [1, 0.6, 1]);
 
   const controls = useAnimation();
+
+  useLayoutEffect(() => {
+    controls.set({ x: 0, opacity: 1 });
+  }, [currentIndex, controls]);
 
   const handleDragEnd = async (event: any, info: PanInfo) => {
     const isSwipeRight =
@@ -56,7 +52,6 @@ export function SwipeDeck<T>({
     if (isSwipeRight) {
       const currentItem = data[currentIndex];
       if (canSwipeRight && !canSwipeRight(currentItem)) {
-        // Snap back - swipe right not allowed
         controls.start({
           x: 0,
           opacity: 1,
@@ -64,9 +59,7 @@ export function SwipeDeck<T>({
         });
         return;
       }
-      // Fire bet flow immediately so wallet signature prompt appears right away (same as grid stake)
       if (onSwipeRight) onSwipeRight(currentItem);
-      // Animate card offscreen to the right (in parallel)
       await controls.start({
         x: 500,
         opacity: 0,
@@ -74,7 +67,6 @@ export function SwipeDeck<T>({
       });
       handleNext(1);
     } else if (isSwipeLeft) {
-      // Animate card offscreen to the left
       await controls.start({
         x: -500,
         opacity: 0,
@@ -82,7 +74,6 @@ export function SwipeDeck<T>({
       });
       handleNext(-1);
     } else {
-      // Snap back to center
       controls.start({
         x: 0,
         opacity: 1,
@@ -93,7 +84,6 @@ export function SwipeDeck<T>({
 
   const handleNext = (direction: number) => {
     const currentItem = data[currentIndex];
-    // onSwipeRight is called immediately in handleDragEnd for instant wallet prompt
     if (direction < 0 && onSwipeLeft) onSwipeLeft(currentItem);
 
     setCurrentIndex((prev) => {
@@ -103,8 +93,6 @@ export function SwipeDeck<T>({
       }
       return next;
     });
-
-    // Reset motion value for the next card that becomes the top card
     x.set(0);
     controls.set({ x: 0, opacity: 1 });
   };
@@ -116,12 +104,9 @@ export function SwipeDeck<T>({
   }
 
   return (
-    <div className="relative w-full h-[600px] flex items-center justify-center perspective-[1000px]">
+    <div className="relative w-full h-[70vh]  flex items-center justify-center perspective-[1000px]">
       {[...data].reverse().map((item, reversedIndex) => {
-        // Since we reversed, the actual index in the array is:
         const index = data.length - 1 - reversedIndex;
-
-        // Only render the top 3 cards for performance
         if (index < currentIndex || index > currentIndex + 2) return null;
 
         const isTopCard = index === currentIndex;
@@ -130,12 +115,9 @@ export function SwipeDeck<T>({
         return (
           <motion.div
             key={keyExtractor(item)}
-            className="absolute w-full max-w-[420px] h-full flex items-center justify-center will-change-transform"
+            className="absolute w-full max-w-[420px]  h-full flex items-center justify-center will-change-transform"
             style={{
               zIndex: data.length - index,
-              // Top card gets full opacity and normal scale normally, unless it's dragged
-              // Second card gets dynamically scaled and faded based on drag
-              // Third card is invisible or static at the back
               scale: isTopCard ? 1 : isSecondCard ? nextCardScale : 0.92,
               opacity: isTopCard ? opacity : isSecondCard ? nextCardOpacity : 0,
 
@@ -144,10 +126,14 @@ export function SwipeDeck<T>({
             }}
             drag={isTopCard ? "x" : false}
             dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-            dragElastic={1} // High elasticity allows pulling far off constraints
+            dragElastic={1}
             onDragEnd={isTopCard ? handleDragEnd : undefined}
             whileTap={isTopCard ? { cursor: "grabbing" } : undefined}
-            initial={{ scale: 0.92, opacity: 0 }}
+            initial={
+              isTopCard
+                ? false
+                : { scale: 0.92, opacity: isSecondCard ? 0.6 : 0 }
+            }
             animate={
               isTopCard
                 ? controls

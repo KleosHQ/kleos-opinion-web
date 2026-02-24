@@ -35,6 +35,9 @@ importers:
       '@radix-ui/react-slot':
         specifier: ^1.2.4
         version: 1.2.4(@types/react@19.2.14)(react@19.2.4)
+      '@silk-hq/components':
+        specifier: ^0.10.1
+        version: 0.10.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@solana-program/memo':
         specifier: '*'
         version: 0.11.0(@solana/kit@6.1.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10))
@@ -83,6 +86,9 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      next-view-transitions:
+        specifier: ^0.3.5
+        version: 0.3.5(next@16.1.6(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react:
         specifier: ^19.0.0
         version: 19.2.4
@@ -1340,6 +1346,12 @@ packages:
 
   '@scure/bip39@1.6.0':
     resolution: {integrity: sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A==}
+
+  '@silk-hq/components@0.10.1':
+    resolution: {integrity: sha512-Xtn3Vhn6mSOmM8haegor0g2W3Cm5QcKbPWsfk5kJzyXSTTpyRphmapmFz70mKtbe9VIalpbpkBZ84MDvGNoYfg==}
+    peerDependencies:
+      react: ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+      react-dom: ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
 
   '@simplewebauthn/browser@13.2.2':
     resolution: {integrity: sha512-FNW1oLQpTJyqG5kkDg5ZsotvWgmBaC6jCHR7Ej0qUNep36Wl9tj2eZu7J5rP+uhXgHaLk+QQ3lqcw2vS5MX1IA==}
@@ -4126,6 +4138,13 @@ packages:
     peerDependencies:
       react: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
       react-dom: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
+
+  next-view-transitions@0.3.5:
+    resolution: {integrity: sha512-yP8OPNydLmKpmE94hLurLGEzPsUy1uyl9iSv8oxaC2JwhSXTD86SVwk1NMMQT7Ado4kMENDJ7fNBIXHy3GU/Lg==}
+    peerDependencies:
+      next: '>=14.0.0'
+      react: '>=18.2.0 || ^19.0.0'
+      react-dom: '>=18.2.0 || ^19.0.0'
 
   next@16.1.6:
     resolution: {integrity: sha512-hkyRkcu5x/41KoqnROkfTm2pZVbKxvbZRuNvKXLRXxs3VfyO0WhY50TQS40EuKO9SW3rBj/sF3WbVwDACeMZyw==}
@@ -7556,6 +7575,11 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
+
+  '@silk-hq/components@0.10.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
 
   '@simplewebauthn/browser@13.2.2': {}
 
@@ -11541,6 +11565,12 @@ snapshots:
 
   next-themes@0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+
+  next-view-transitions@0.3.5(next@16.1.6(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+    dependencies:
+      next: 16.1.6(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 

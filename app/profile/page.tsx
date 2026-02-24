@@ -81,12 +81,9 @@ export default function ProfilePage() {
 
   return (
     <main className="min-h-screen bg-kleos-bg pb-24">
-      <div className="max-w-md mx-auto px-5 pt-14 pb-4">
+      <div className="max-w-md mx-auto px-5 pt-6 pb-4">
         <header className="mb-6">
-          <h1 className="text-2xl font-bold text-white">Profile</h1>
-          <p className="text-kleos-text-muted text-sm mt-1">
-            Your reputation & influence
-          </p>
+          <h1 className="text-2xl font-bold font-secondary text-white">Profile</h1>
         </header>
 
         {/* Wallet card - matches mobile */}

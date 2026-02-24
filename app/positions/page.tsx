@@ -182,79 +182,74 @@ export default function PositionsPage() {
 
   return (
     <main className="min-h-screen bg-kleos-bg pb-24">
-      <div className="max-w-md mx-auto px-5 pt-14 pb-4">
+      <div className="max-w-md mx-auto px-5 pt-6 pb-4">
         <header className="mb-6">
-          <h1 className="text-2xl font-bold text-white">Portfolio</h1>
-          <p className="text-kleos-text-muted text-sm mt-1">
-            Your positions & performance
-          </p>
+          <h1 className="text-2xl font-bold font-secondary text-white">Portfolio</h1>
         </header>
 
-        {loading ? (
-          <div className="space-y-4">
-            <div className="animate-pulse bg-kleos-bg-card h-24 rounded-2xl border border-kleos-border" />
-            <div className="animate-pulse bg-kleos-bg-card h-24 rounded-2xl border border-kleos-border" />
-            <div className="animate-pulse bg-kleos-bg-card h-32 rounded-2xl border border-kleos-border" />
-          </div>
-        ) : (
-          <>
-            {/* Top Stat Cards - matches mobile */}
-            <div className="mb-6">
-              <div className="flex gap-3">
-                <div className="flex-1 p-4 rounded-2xl bg-kleos-bg-card border border-kleos-border">
-                  <p className="text-kleos-text-muted text-xs mb-1">
-                    Total staked
-                  </p>
-                  <p className="text-white text-xl font-bold">
-                    {(totalStaked / 1e9).toFixed(6)} SOL
-                  </p>
-                </div>
-                <div className="flex-1 p-4 rounded-2xl bg-kleos-bg-card border border-kleos-border">
-                  <p className="text-kleos-text-muted text-xs mb-1">Pending</p>
-                  <p className="text-kleos-primary text-xl font-bold">
-                    0.000000 SOL
-                  </p>
-                </div>
-              </div>
-              <div className="p-4 mt-3 rounded-2xl bg-kleos-bg-card border border-kleos-border">
+        <>
+          <div className="mb-6">
+            <div className="flex gap-3">
+              <div className="flex-1 p-4 rounded-2xl bg-kleos-bg-card border border-kleos-border">
                 <p className="text-kleos-text-muted text-xs mb-1">
-                  Active Positions
+                  Total staked
                 </p>
-                <p className="text-white text-lg font-bold">{active.length}</p>
-                <p className="text-kleos-text-subtle text-xs mt-1">
-                  Across {activeMarketsCount} markets
+                <p className="text-white text-xl font-bold">
+                  {loading ? "—" : `${(totalStaked / 1e9).toFixed(6)} SOL`}
+                </p>
+              </div>
+              <div className="flex-1 p-4 rounded-2xl bg-kleos-bg-card border border-kleos-border">
+                <p className="text-kleos-text-muted text-xs mb-1">Pending</p>
+                <p className="text-kleos-primary text-xl font-bold">
+                  {loading ? "—" : "0.000000 SOL"}
                 </p>
               </div>
             </div>
-
-            {/* Tabs - matches mobile: active=kleos-primary */}
-            <div className="flex mb-4 gap-2">
-              {(
-                [
-                  ["active", "Active"],
-                  ["claim", "Claim"],
-                  ["history", "History"],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => setTab(key)}
-                  className={cn(
-                    "flex-1 py-2 rounded-lg text-sm font-medium transition-colors",
-                    tab === key
-                      ? "bg-kleos-primary text-kleos-bg"
-                      : "bg-kleos-bg-card border border-kleos-border text-white"
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="p-4 mt-3 rounded-2xl bg-kleos-bg-card border border-kleos-border">
+              <p className="text-kleos-text-muted text-xs mb-1">
+                Active Positions
+              </p>
+              <p className="text-white text-lg font-bold">
+                {loading ? "—" : active.length}
+              </p>
+              <p className="text-kleos-text-subtle text-xs mt-1">
+                {loading ? "—" : `Across ${activeMarketsCount} markets`}
+              </p>
             </div>
+          </div>
 
-            {/* Tab content */}
-            {tab === "active" && (
-              <div className="space-y-4">
-                {active.length === 0 ? (
+          <div className="flex mb-4 gap-2">
+            {(
+              [
+                ["active", "Active"],
+                ["claim", "Claim"],
+                ["history", "History"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={cn(
+                  "flex-1 py-2 rounded-lg text-sm font-medium transition-colors",
+                  tab === key
+                    ? "bg-kleos-primary text-kleos-bg"
+                    : "bg-kleos-bg-card border border-kleos-border text-white"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === "active" && (
+            <div className="space-y-4">
+                {loading ? (
+                  <div className="space-y-4">
+                    <div className="animate-pulse bg-kleos-bg-card h-20 rounded-2xl border border-kleos-border" />
+                    <div className="animate-pulse bg-kleos-bg-card h-20 rounded-2xl border border-kleos-border" />
+                    <div className="animate-pulse bg-kleos-bg-card h-20 rounded-2xl border border-kleos-border" />
+                  </div>
+                ) : active.length === 0 ? (
                   <div className="py-16 text-center">
                     <p className="text-kleos-text-muted">No active positions</p>
                     <Link
@@ -285,11 +280,16 @@ export default function PositionsPage() {
                   ))
                 )}
               </div>
-            )}
+          )}
 
-            {tab === "claim" && (
-              <div className="space-y-4">
-                {claimable.length === 0 ? (
+          {tab === "claim" && (
+            <div className="space-y-4">
+                {loading ? (
+                  <div className="space-y-4">
+                    <div className="animate-pulse bg-kleos-bg-card h-24 rounded-2xl border border-kleos-border" />
+                    <div className="animate-pulse bg-kleos-bg-card h-24 rounded-2xl border border-kleos-border" />
+                  </div>
+                ) : claimable.length === 0 ? (
                   <div className="py-16 text-center">
                     <p className="text-kleos-text-muted">Nothing to claim</p>
                   </div>
@@ -318,12 +318,18 @@ export default function PositionsPage() {
                     </div>
                   ))
                 )}
-              </div>
-            )}
+            </div>
+          )}
 
-            {tab === "history" && (
-              <div className="space-y-4">
-                {history.length === 0 ? (
+          {tab === "history" && (
+            <div className="space-y-4">
+                {loading ? (
+                  <div className="space-y-4">
+                    <div className="animate-pulse bg-kleos-bg-card h-20 rounded-2xl border border-kleos-border" />
+                    <div className="animate-pulse bg-kleos-bg-card h-20 rounded-2xl border border-kleos-border" />
+                    <div className="animate-pulse bg-kleos-bg-card h-20 rounded-2xl border border-kleos-border" />
+                  </div>
+                ) : history.length === 0 ? (
                   <div className="py-16 text-center">
                     <p className="text-kleos-text-muted">No history yet</p>
                   </div>
@@ -353,10 +359,9 @@ export default function PositionsPage() {
                     </Link>
                   ))
                 )}
-              </div>
-            )}
-          </>
-        )}
+            </div>
+          )}
+        </>
       </div>
     </main>
   );
