@@ -1,0 +1,7 @@
+colors setup
+
+sheet component for indepth card detail
+
+update expo codebase to match the ui
+
+make it smooth

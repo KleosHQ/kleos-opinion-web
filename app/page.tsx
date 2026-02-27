@@ -77,7 +77,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!ready) return;
-    if (!authenticated || !isSolanaConnected) {
+    if (!authenticated) {
       setMarkets([]);
       return;
     }
@@ -104,7 +104,7 @@ export default function Home() {
     };
 
     fetchMarkets();
-  }, [ready, authenticated, effectiveFilter, walletAddress, isAdmin, isSolanaConnected]);
+  }, [ready, authenticated, effectiveFilter, walletAddress, isAdmin]);
 
   const handleSwipeRight = useCallback(
     async (m: Market) => {
@@ -145,7 +145,7 @@ export default function Home() {
     );
   }
 
-  const showLanding = !authenticated || !isSolanaConnected;
+  const showLanding = !authenticated;
 
   return (
     <main className={showLanding ? "h-screen overflow-hidden bg-kleos-bg" : "min-h-screen bg-kleos-bg pt-6 lg:pt-20 pb-24 lg:pb-12"}>
@@ -178,7 +178,7 @@ export default function Home() {
               size="lg"
               onClick={connectSolanaWallet}
               disabled={connecting || !ready}
-              className="w-full bg-kleos-primary hover:bg-kleos-primary-dark text-kleos-bg font-semibold text-lg py-6 rounded-full"
+              className="w-full bg-kleos-primary hover:bg-kleos-primary-dark text-kleos-bg font-semibold text-lg py-6 rounded-full disabled:opacity-70 disabled:cursor-not-allowed disabled:pointer-events-none"
             >
               {connecting ? "Connecting…" : "Connect Wallet"}
             </Button>
