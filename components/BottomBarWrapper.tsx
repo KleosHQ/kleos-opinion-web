@@ -35,7 +35,7 @@ export function BottomBarWrapper() {
         <TopNav isAdmin={isAdmin} />
       </div>
       {/* Mobile/tablet: bottom nav */}
-      <div className="lg:hidden">
+      <div className="lg:hidden block">
         <BottomBar isAdmin={isAdmin} />
       </div>
     </>
