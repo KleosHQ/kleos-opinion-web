@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
           streakBest: 0,
           reputationMultiplier: 1,
           totalEffectiveStaked: 0,
+          totalRawStaked: 0,
           participationCount: 0,
           recentMarkets: [],
         })
@@ -43,6 +44,7 @@ export async function GET(request: NextRequest) {
         streakBest: 0,
         reputationMultiplier: 1,
         totalEffectiveStaked: 0,
+        totalRawStaked: 0,
         participationCount: 0,
         recentMarkets: [],
       })
@@ -50,6 +52,7 @@ export async function GET(request: NextRequest) {
 
     const recentMarkets = user.positions.map((p) => ({
       marketId: p.market.marketId.toString(),
+      title: p.market.title ?? null,
       selectedItemIndex: p.selectedItemIndex,
       rawStake: p.rawStake.toString(),
       effectiveStake: p.effectiveStake,
@@ -60,9 +63,9 @@ export async function GET(request: NextRequest) {
       streak: user.streakCurrent,
       streakBest: user.streakBest,
       reputationMultiplier: user.reputationMultiplierCached ?? 1,
-      totalEffectiveStaked: user.totalEffectiveStaked,
-      totalRawStaked: user.totalRawStaked,
-      participationCount: user.totalMarketsParticipated,
+      totalEffectiveStaked: user.totalEffectiveStaked ?? 0,
+      totalRawStaked: user.totalRawStaked ?? 0,
+      participationCount: user.totalMarketsParticipated ?? 0,
       recentMarkets,
     })
   } catch (error: unknown) {

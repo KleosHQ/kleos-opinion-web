@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { PublicKey, Transaction } from '@solana/web3.js'
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
@@ -11,255 +11,275 @@ import {
   NATIVE_MINT,
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
-} from '@solana/spl-token'
-import { SystemProgram } from '@solana/web3.js'
-import { getTokenProgramForMint } from '@/lib/utils/tokenProgram'
-import { useWallets } from '@privy-io/react-auth/solana'
-import bs58 from 'bs58'
-import { useSolanaWallet } from '@/lib/hooks/useSolanaWallet'
-import { useSolanaLogin } from '@/lib/hooks/useSolanaLogin'
-import { MarketItemsDisplay } from '@/components/MarketItemsDisplay'
-import { MarketCountdown } from '@/components/MarketCountdown'
-import { marketsApi, positionsApi, protocolApi } from '@/lib/api'
-import { useSolanaClient } from '@/lib/solana/useSolanaClient'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { toast } from '@/lib/utils/toast'
-import { cn } from '@/lib/utils'
-import { MarketStatus } from '@/lib/solana/generated/types'
-import { EditMarketModal } from '@/components/EditMarketModal'
+} from "@solana/spl-token";
+import { SystemProgram } from "@solana/web3.js";
+import { useWallets } from "@privy-io/react-auth/solana";
+import bs58 from "bs58";
+import { useSolanaWallet } from "@/lib/hooks/useSolanaWallet";
+import { useSolanaLogin } from "@/lib/hooks/useSolanaLogin";
+import { MarketCountdown } from "@/components/MarketCountdown";
+import { marketsApi, positionsApi, protocolApi } from "@/lib/api";
+import { useSolanaClient } from "@/lib/solana/useSolanaClient";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/lib/utils/toast";
+import { cn } from "@/lib/utils";
+import { EditMarketModal } from "@/components/EditMarketModal";
 
 interface Market {
-  marketId: string
-  title?: string | null
-  items?: string[] | null
-  itemsHash: string
-  itemCount: number
-  phase?: 'early' | 'mid' | 'late'
-  status: 'Draft' | 'Open' | 'Closed' | 'Settled'
-  startTs: string
-  endTs: string
-  totalRawStake: string
-  totalEffectiveStake: string
-  positionsCount: number
-  winningItemIndex: number | null
-  tokenMint: string
-  isNative?: boolean
-  positions: Position[]
+  marketId: string;
+  title?: string | null;
+  items?: string[] | null;
+  itemsHash: string;
+  itemCount: number;
+  phase?: "early" | "mid" | "late";
+  status: "Draft" | "Open" | "Closed" | "Settled";
+  startTs: string;
+  endTs: string;
+  totalRawStake: string;
+  totalEffectiveStake: string;
+  positionsCount: number;
+  winningItemIndex: number | null;
+  tokenMint: string;
+  isNative?: boolean;
+  positions: Position[];
   protocol?: {
-    adminAuthority: string
-    treasury: string
-  }
+    adminAuthority: string;
+    treasury: string;
+  };
 }
 
 interface Position {
-  id: string
-  user: string
-  selectedItemIndex: number
-  rawStake: string
-  effectiveStake: string
-  claimed: boolean
+  id: string;
+  user: string;
+  selectedItemIndex: number;
+  rawStake: string;
+  effectiveStake: string;
+  claimed: boolean;
 }
 
 export default function MarketDetailPage() {
-  const { connectSolanaWallet, connecting, ready, authenticated } = useSolanaLogin()
-  const { address: walletAddress, isConnected: isSolanaConnected, publicKey } = useSolanaWallet()
-  const { wallets } = useWallets()
-  const { client, connection } = useSolanaClient()
-  const params = useParams()
-  const router = useRouter()
-  const marketId = params.marketId as string
+  const { connectSolanaWallet, connecting, ready, authenticated } =
+    useSolanaLogin();
+  const {
+    address: walletAddress,
+    isConnected: isSolanaConnected,
+    publicKey,
+  } = useSolanaWallet();
+  const { wallets } = useWallets();
+  const { client, connection } = useSolanaClient();
+  const params = useParams();
+  const router = useRouter();
+  const marketId = params.marketId as string;
 
-  const [market, setMarket] = useState<Market | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [placingPosition, setPlacingPosition] = useState(false)
-  const [selectedItem, setSelectedItem] = useState<number | null>(null)
-  const [rawStake, setRawStake] = useState('')
-  const fetchingRef = useRef(false)
-  const lastMarketIdRef = useRef<string | null>(null)
-  const [settling, setSettling] = useState(false)
-  const [winningItem, setWinningItem] = useState<number | null>(null)
-  const [closing, setClosing] = useState(false)
-  const [opening, setOpening] = useState(false)
-  const [claiming, setClaiming] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
+  const [market, setMarket] = useState<Market | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [placingPosition, setPlacingPosition] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<number | null>(null);
+  const [rawStake, setRawStake] = useState("");
+  const fetchingRef = useRef(false);
+  const lastMarketIdRef = useRef<string | null>(null);
+  const [settling, setSettling] = useState(false);
+  const [winningItem, setWinningItem] = useState<number | null>(null);
+  const [closing, setClosing] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
-    // Only fetch if ready and not already fetching
-    if (!ready || fetchingRef.current) {
-      return
-    }
-
-    // Skip if marketId hasn't changed
-    if (lastMarketIdRef.current === marketId) {
-      return
-    }
-
-    // Mark as fetching
-    fetchingRef.current = true
-    lastMarketIdRef.current = marketId
+    if (!ready || fetchingRef.current) return;
+    if (lastMarketIdRef.current === marketId) return;
+    fetchingRef.current = true;
+    lastMarketIdRef.current = marketId;
 
     const fetchMarket = async () => {
-      setLoading(true)
+      setLoading(true);
       try {
-        const response = await marketsApi.getById(marketId)
+        const response = await marketsApi.getById(marketId);
         if (response.data) {
-          setMarket(response.data)
+          setMarket(response.data);
         } else {
-          const allResponse = await marketsApi.getAll({})
-          const found = allResponse.data?.find((m: { marketId: string }) => m.marketId === marketId)
+          const allResponse = await marketsApi.getAll({});
+          const found = allResponse.data?.find(
+            (m: { marketId: string }) => m.marketId === marketId,
+          );
           if (found) {
-            const protocolRes = await protocolApi.get().catch(() => null)
-            const protocol = protocolRes?.data
+            const protocolRes = await protocolApi.get().catch(() => null);
+            const protocol = protocolRes?.data;
             setMarket({
               ...found,
               items: found.items ?? null,
               positions: found.positions ?? [],
-              protocol: protocol ? { adminAuthority: protocol.adminAuthority, treasury: protocol.treasury } : undefined,
-            })
+              protocol: protocol
+                ? {
+                    adminAuthority: protocol.adminAuthority,
+                    treasury: protocol.treasury,
+                  }
+                : undefined,
+            });
           } else {
-            setMarket(null)
+            setMarket(null);
           }
         }
       } catch {
         try {
-          const allResponse = await marketsApi.getAll({})
-          const found = allResponse.data?.find((m: { marketId: string }) => m.marketId === marketId)
+          const allResponse = await marketsApi.getAll({});
+          const found = allResponse.data?.find(
+            (m: { marketId: string }) => m.marketId === marketId,
+          );
           if (found) {
-            const protocolRes = await protocolApi.get().catch(() => null)
-            const protocol = protocolRes?.data
+            const protocolRes = await protocolApi.get().catch(() => null);
+            const protocol = protocolRes?.data;
             setMarket({
               ...found,
               items: found.items ?? null,
               positions: found.positions ?? [],
-              protocol: protocol ? { adminAuthority: protocol.adminAuthority, treasury: protocol.treasury } : undefined,
-            })
+              protocol: protocol
+                ? {
+                    adminAuthority: protocol.adminAuthority,
+                    treasury: protocol.treasury,
+                  }
+                : undefined,
+            });
           } else {
-            setMarket(null)
+            setMarket(null);
           }
         } catch {
-          setMarket(null)
+          setMarket(null);
         }
       } finally {
-        setLoading(false)
-        fetchingRef.current = false
+        setLoading(false);
+        fetchingRef.current = false;
       }
-    }
+    };
 
-    fetchMarket()
-  }, [ready, marketId])
+    fetchMarket();
+  }, [ready, marketId]);
 
   const fetchMarket = useCallback(async () => {
-    if (fetchingRef.current || lastMarketIdRef.current === marketId) return
-    fetchingRef.current = true
-    lastMarketIdRef.current = marketId
-    setLoading(true)
+    if (fetchingRef.current || lastMarketIdRef.current === marketId) return;
+    fetchingRef.current = true;
+    lastMarketIdRef.current = marketId;
+    setLoading(true);
     try {
-      const response = await marketsApi.getById(marketId)
+      const response = await marketsApi.getById(marketId);
       if (response.data) {
-        setMarket(response.data)
+        setMarket(response.data);
       } else {
-        const allResponse = await marketsApi.getAll({})
-        const found = allResponse.data?.find((m: { marketId: string }) => m.marketId === marketId)
+        const allResponse = await marketsApi.getAll({});
+        const found = allResponse.data?.find(
+          (m: { marketId: string }) => m.marketId === marketId,
+        );
         if (found) {
-          const protocolRes = await protocolApi.get().catch(() => null)
-          const protocol = protocolRes?.data
+          const protocolRes = await protocolApi.get().catch(() => null);
+          const protocol = protocolRes?.data;
           setMarket({
             ...found,
             items: found.items ?? null,
             positions: found.positions ?? [],
-            protocol: protocol ? { adminAuthority: protocol.adminAuthority, treasury: protocol.treasury } : undefined,
-          })
+            protocol: protocol
+              ? {
+                  adminAuthority: protocol.adminAuthority,
+                  treasury: protocol.treasury,
+                }
+              : undefined,
+          });
         } else {
-          setMarket(null)
+          setMarket(null);
         }
       }
     } catch {
       try {
-        const allResponse = await marketsApi.getAll({})
-        const found = allResponse.data?.find((m: { marketId: string }) => m.marketId === marketId)
+        const allResponse = await marketsApi.getAll({});
+        const found = allResponse.data?.find(
+          (m: { marketId: string }) => m.marketId === marketId,
+        );
         if (found) {
-          const protocolRes = await protocolApi.get().catch(() => null)
-          const protocol = protocolRes?.data
+          const protocolRes = await protocolApi.get().catch(() => null);
+          const protocol = protocolRes?.data;
           setMarket({
             ...found,
             items: found.items ?? null,
             positions: found.positions ?? [],
-            protocol: protocol ? { adminAuthority: protocol.adminAuthority, treasury: protocol.treasury } : undefined,
-          })
+            protocol: protocol
+              ? {
+                  adminAuthority: protocol.adminAuthority,
+                  treasury: protocol.treasury,
+                }
+              : undefined,
+          });
         } else {
-          setMarket(null)
+          setMarket(null);
         }
       } catch {
-        setMarket(null)
+        setMarket(null);
       }
     } finally {
-      setLoading(false)
-      fetchingRef.current = false
+      setLoading(false);
+      fetchingRef.current = false;
     }
-  }, [marketId])
+  }, [marketId]);
 
   useEffect(() => {
     if (ready) {
-      fetchMarket()
+      fetchMarket();
     }
-  }, [ready, fetchMarket])
+  }, [ready, fetchMarket]);
 
   const handlePlacePosition = async () => {
-    if (!authenticated || !walletAddress || !publicKey || selectedItem === null || !rawStake || !market) {
-      toast.error('Please fill all fields and connect a Solana wallet')
-      return
+    if (
+      !authenticated ||
+      !walletAddress ||
+      !publicKey ||
+      selectedItem === null ||
+      !rawStake ||
+      !market
+    ) {
+      toast.error("Please fill all fields and connect a Solana wallet");
+      return;
     }
 
-    // Validate stake amounts
-    const rawStakeNum = Number(rawStake)
-    
+    const rawStakeNum = Number(rawStake);
+
     if (rawStakeNum <= 0) {
-      toast.error('Raw stake must be greater than 0')
-      return
+      toast.error("Raw stake must be greater than 0");
+      return;
     }
 
-    setPlacingPosition(true)
+    setPlacingPosition(true);
     try {
-      // Get wallet first (needed for wrapped SOL transactions)
-      const solanaWallet = wallets.find(w => w.address && !w.address.startsWith('0x') && w.address === walletAddress)
+      const solanaWallet = wallets.find(
+        (w) =>
+          w.address &&
+          !w.address.startsWith("0x") &&
+          w.address === walletAddress,
+      );
       if (!solanaWallet) {
-        throw new Error('Solana wallet not found')
+        throw new Error("Solana wallet not found");
       }
-      
-      // Step 1: Calculate effective stake from backend
-      const effectiveStakeResponse = await positionsApi.calculateEffectiveStake({
-        wallet: walletAddress,
-        rawStake: rawStakeNum,
-        marketId,
-      })
 
-      const calculatedEffectiveStake = effectiveStakeResponse.data.effectiveStake
-      // effectiveStakeLamports is already in lamports (integer)
-      const effectiveStakeLamports = effectiveStakeResponse.data.effectiveStakeLamports ?? Math.floor(calculatedEffectiveStake * 1e9)
-      const fairscore = effectiveStakeResponse.data.fairscore
-      const reputationMultiplier = effectiveStakeResponse.data.multipliers?.reputation ?? 1
-      const timingMultiplier = effectiveStakeResponse.data.multipliers?.timing ?? 1
-      const calculationTimestamp = effectiveStakeResponse.data.calculationTimestamp
+      const effectiveStakeResponse = await positionsApi.calculateEffectiveStake(
+        {
+          wallet: walletAddress,
+          rawStake: rawStakeNum,
+          marketId,
+        },
+      );
 
-      console.log('Effective Stake Calculation:', {
-        rawStake: rawStakeNum,
-        effectiveStake: calculatedEffectiveStake,
-        effectiveStakeLamports,
-        fairscore,
-        reputationMultiplier,
-        timingMultiplier,
-        calculationTimestamp,
-      })
+      const calculatedEffectiveStake =
+        effectiveStakeResponse.data.effectiveStake;
+      const effectiveStakeLamports =
+        effectiveStakeResponse.data.effectiveStakeLamports ??
+        Math.floor(calculatedEffectiveStake * 1e9);
+      const fairscore = effectiveStakeResponse.data.fairscore;
+      const reputationMultiplier =
+        effectiveStakeResponse.data.multipliers?.reputation ?? 1;
+      const timingMultiplier =
+        effectiveStakeResponse.data.multipliers?.timing ?? 1;
+      const calculationTimestamp =
+        effectiveStakeResponse.data.calculationTimestamp;
 
-      // Step 2: Validate with backend and get transaction (includes effective stake validation)
-      // effectiveStakeLamports is already an integer in lamports, just convert to string
-      // Pass calculationTimestamp so backend uses the same timestamp for consistency
-      let validationResponse
+      let validationResponse;
       try {
         validationResponse = await positionsApi.create({
           marketId,
@@ -267,60 +287,46 @@ export default function MarketDetailPage() {
           selectedItemIndex: selectedItem,
           rawStake: rawStakeNum.toString(),
           effectiveStake: String(effectiveStakeLamports),
-          calculationTimestamp, // Pass timestamp to ensure backend uses same time
-        })
+          calculationTimestamp,
+        });
 
         if (!validationResponse.data.success) {
-          const errorMsg = validationResponse.data.error || 'Validation failed'
-          const errorDetails = validationResponse.data
-          console.error('Validation failed:', errorDetails)
-          throw new Error(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg))
+          const errorMsg = validationResponse.data.error || "Validation failed";
+          throw new Error(
+            typeof errorMsg === "string" ? errorMsg : JSON.stringify(errorMsg),
+          );
         }
       } catch (apiError: any) {
-        // Log the full error response for debugging
-        console.error('Full API error object:', {
-          message: apiError?.message,
-          response: apiError?.response,
-          responseData: apiError?.response?.data,
-          responseStatus: apiError?.response?.status,
-          responseHeaders: apiError?.response?.headers,
-          request: apiError?.request,
-          config: apiError?.config,
-        })
-        if (apiError?.response?.data) {
-          console.error('Backend API error response:', JSON.stringify(apiError.response.data, null, 2))
-          console.error('Status:', apiError.response.status)
-        } else {
-          console.error('No response data in error - might be network error or empty response')
-        }
-        throw apiError
+        throw apiError;
       }
 
-      // Step 3: Backend has created the transaction, now combine with wrapping if needed
-      // (solanaWallet is already declared at the top of try block)
+      const transactionBuffer = Buffer.from(
+        validationResponse.data.transaction,
+        "base64",
+      );
+      const transaction = Transaction.from(transactionBuffer);
 
-      // Deserialize transaction from backend
-      const transactionBuffer = Buffer.from(validationResponse.data.transaction, 'base64')
-      const transaction = Transaction.from(transactionBuffer)
-      
-      // Check if market uses wrapped SOL and add wrapping instructions if needed
-      const wrappedSolMint = 'So11111111111111111111111111111111111111112'
-      const requiredLamports = Math.floor(rawStakeNum * 1e9)
-      let needsWrapping = false
-      let wrapInstructions: any[] = []
-      
+      const wrappedSolMint = "So11111111111111111111111111111111111111112";
+      const requiredLamports = Math.floor(rawStakeNum * 1e9);
+      let needsWrapping = false;
+      let wrapInstructions: any[] = [];
+
       if (market.tokenMint === wrappedSolMint) {
-        const tokenMintPubkey = new PublicKey(market.tokenMint)
-        const userAta = await getAssociatedTokenAddress(tokenMintPubkey, publicKey)
-        
-        const ataInfo = await connection.getAccountInfo(userAta)
-        
+        const tokenMintPubkey = new PublicKey(market.tokenMint);
+        const userAta = await getAssociatedTokenAddress(
+          tokenMintPubkey,
+          publicKey,
+        );
+
+        const ataInfo = await connection.getAccountInfo(userAta);
+
         if (!ataInfo) {
-          // Need to create ATA and wrap SOL
-          needsWrapping = true
-          toast.success('Combining wrap and stake...', 'Wrapping SOL and placing position in one transaction')
-          
-          // Create ATA for wrapped SOL
+          needsWrapping = true;
+          toast.success(
+            "Combining wrap and stake...",
+            "Wrapping SOL and placing position in one transaction",
+          );
+
           wrapInstructions.push(
             createAssociatedTokenAccountInstruction(
               publicKey,
@@ -328,105 +334,81 @@ export default function MarketDetailPage() {
               publicKey,
               NATIVE_MINT,
               TOKEN_PROGRAM_ID,
-              ASSOCIATED_TOKEN_PROGRAM_ID
-            )
-          )
-          
-          // Transfer SOL to the ATA (this wraps it)
+              ASSOCIATED_TOKEN_PROGRAM_ID,
+            ),
+          );
+
           wrapInstructions.push(
             SystemProgram.transfer({
               fromPubkey: publicKey,
               toPubkey: userAta,
               lamports: requiredLamports,
-            })
-          )
-          
-          // Sync native (finalize the wrapping)
+            }),
+          );
+
           wrapInstructions.push(
-            createSyncNativeInstruction(userAta, TOKEN_PROGRAM_ID)
-          )
+            createSyncNativeInstruction(userAta, TOKEN_PROGRAM_ID),
+          );
         } else {
-          // Check if enough wrapped SOL
-          const tokenBalance = await connection.getTokenAccountBalance(userAta)
-          const balanceLamports = Number(tokenBalance.value.amount)
-          
+          const tokenBalance = await connection.getTokenAccountBalance(userAta);
+          const balanceLamports = Number(tokenBalance.value.amount);
+
           if (balanceLamports < requiredLamports) {
-            // Need to wrap more SOL
-            needsWrapping = true
-            const additionalAmount = requiredLamports - balanceLamports
-            toast.success('Combining wrap and stake...', `Wrapping ${(additionalAmount / 1e9).toFixed(4)} SOL and placing position in one transaction`)
-            
-            // Transfer SOL to the ATA
+            needsWrapping = true;
+            const additionalAmount = requiredLamports - balanceLamports;
+            toast.success(
+              "Combining wrap and stake...",
+              `Wrapping ${(additionalAmount / 1e9).toFixed(4)} SOL and placing position in one transaction`,
+            );
+
             wrapInstructions.push(
               SystemProgram.transfer({
                 fromPubkey: publicKey,
                 toPubkey: userAta,
                 lamports: additionalAmount,
-              })
-            )
-            
-            // Sync native
+              }),
+            );
+
             wrapInstructions.push(
-              createSyncNativeInstruction(userAta, TOKEN_PROGRAM_ID)
-            )
+              createSyncNativeInstruction(userAta, TOKEN_PROGRAM_ID),
+            );
           }
         }
       }
-      
-      // Add wrapping instructions BEFORE the position instruction
+
       if (needsWrapping && wrapInstructions.length > 0) {
-        // Insert wrapping instructions at the beginning
-        transaction.instructions.unshift(...wrapInstructions)
+        transaction.instructions.unshift(...wrapInstructions);
       }
-      
-      // Log transaction structure for debugging
-      console.log('Combined transaction:', {
-        instructionsCount: transaction.instructions.length,
-        wrappingInstructions: needsWrapping ? wrapInstructions.length : 0,
-        positionInstructions: needsWrapping ? transaction.instructions.length - wrapInstructions.length : transaction.instructions.length,
-        feePayer: transaction.feePayer?.toBase58(),
-        instructions: transaction.instructions.map((ix, idx) => ({
-          index: idx,
-          programId: ix.programId.toBase58(),
-          keys: ix.keys.map(k => ({
-            pubkey: k.pubkey.toBase58(),
-            isSigner: k.isSigner,
-            isWritable: k.isWritable,
-          })),
-          dataLength: ix.data.length,
-          data: Array.from(ix.data).slice(0, 10), // First 10 bytes
-        })),
-      })
-      
-      const { blockhash, lastValidBlockHeight } = validationResponse.data
 
-      // Update blockhash and fee payer (in case wrapping instructions changed them)
-      transaction.recentBlockhash = blockhash
-      transaction.feePayer = publicKey
+      const { blockhash, lastValidBlockHeight } = validationResponse.data;
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = publicKey;
 
-      // Sign and send combined transaction
       const signResult = await solanaWallet.signAndSendTransaction({
         transaction: transaction.serialize({
           requireAllSignatures: false,
           verifySignatures: false,
         }),
-        chain: 'solana:devnet',
-      })
+        chain: "solana:devnet",
+      });
 
-      const sigValue = typeof signResult === 'string' ? signResult : signResult.signature
-      const signature = typeof sigValue === 'string' ? sigValue : bs58.encode(sigValue)
+      const sigValue =
+        typeof signResult === "string" ? signResult : signResult.signature;
+      const signature =
+        typeof sigValue === "string" ? sigValue : bs58.encode(sigValue);
 
-      // Wait for confirmation
-      await connection.confirmTransaction({
-        signature,
-        blockhash,
-        lastValidBlockHeight,
-      }, 'confirmed')
+      await connection.confirmTransaction(
+        {
+          signature,
+          blockhash,
+          lastValidBlockHeight,
+        },
+        "confirmed",
+      );
 
-      // Save to DB only after successful on-chain tx
-      const pos = validationResponse.data.position
-      const dbMarketId = validationResponse.data.dbMarketId
-      const breakdown = validationResponse.data.breakdown
+      const pos = validationResponse.data.position;
+      const dbMarketId = validationResponse.data.dbMarketId;
+      const breakdown = validationResponse.data.breakdown;
       await positionsApi.confirm({
         signature,
         marketId,
@@ -438,621 +420,681 @@ export default function MarketDetailPage() {
         breakdown,
         marketStartTs: validationResponse.data.marketStartTs,
         marketEndTs: validationResponse.data.marketEndTs,
-      })
+      });
 
-      toast.success('Position placed!', `Influence: ${calculatedEffectiveStake?.toFixed(3) || '?'} SOL · Credibility: ${fairscore || '?'} · Reputation: ${reputationMultiplier?.toFixed(2) || '?'}x · Timing: ${timingMultiplier?.toFixed(2) || '?'}x`)
-      setRawStake('')
-      setSelectedItem(null)
-      fetchMarket()
+      toast.success(
+        "Position placed!",
+        `Influence: ${calculatedEffectiveStake?.toFixed(3) || "?"} SOL · Credibility: ${fairscore || "?"} · Reputation: ${reputationMultiplier?.toFixed(2) || "?"}x · Timing: ${timingMultiplier?.toFixed(2) || "?"}x`,
+      );
+      setRawStake("");
+      setSelectedItem(null);
+      fetchMarket();
     } catch (error: any) {
-      console.error('Error placing position:', error)
-      // Log the full error response if available
-      if (error?.response?.data) {
-        console.error('Backend error response:', error.response.data)
-      }
-      toast.fromApiOrProgramError(error, 'Failed to place position')
+      toast.fromApiOrProgramError(error, "Failed to place position");
     } finally {
-      setPlacingPosition(false)
+      setPlacingPosition(false);
     }
-  }
+  };
 
   const formatTimestamp = (ts: string) => {
-    const timestamp = Number(ts) * 1000
-    return new Date(timestamp).toLocaleString()
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case MarketStatus[MarketStatus.Open]:
-      case 'Open': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-      case MarketStatus[MarketStatus.Closed]:
-      case 'Closed': return 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-      case MarketStatus[MarketStatus.Settled]:
-      case 'Settled': return 'bg-blue-500/20 text-blue-400 border-blue-500/40'
-      case MarketStatus[MarketStatus.Draft]:
-      case 'Draft': return 'bg-muted text-muted-foreground'
-      default: return 'bg-muted text-muted-foreground'
-    }
-  }
+    const timestamp = Number(ts) * 1000;
+    return new Date(timestamp).toLocaleString();
+  };
 
   if (!ready || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-          <Skeleton className="h-9 w-32 mb-8 rounded-md" />
+      <div className="min-h-screen bg-kleos-bg">
+        <div className="max-w-md mx-auto px-5 pt-14">
+          <Skeleton className="h-9 w-32 mb-8 rounded-md bg-kleos-bg-card" />
           <div className="space-y-6">
-            <Skeleton className="h-12 w-full max-w-xl rounded-lg" />
-            <Skeleton className="h-6 w-24 rounded-full" />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4">
-              {[1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-20 rounded-xl" />
+            <Skeleton className="h-12 w-full rounded-2xl bg-kleos-bg-card" />
+            <Skeleton className="h-6 w-24 rounded-full bg-kleos-bg-card" />
+            <div className="flex gap-3 rounded-2xl overflow-hidden border border-kleos-border bg-kleos-bg-card p-4">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-16 flex-1 rounded-xl bg-kleos-bg-elevated" />
               ))}
             </div>
-            <Skeleton className="h-48 rounded-xl" />
+            <Skeleton className="h-48 rounded-2xl bg-kleos-bg-card" />
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   if (!market) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/30 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-kleos-bg px-4">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4 opacity-50">📋</div>
-          <h1 className="text-2xl font-semibold text-foreground mb-2">Market not found</h1>
-          <p className="text-muted-foreground text-sm mb-2">
-            Market ID <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">{marketId}</code> doesn’t exist or couldn’t be loaded.
+          <h1 className="text-2xl font-bold font-secondary text-white mb-2">
+            Market not found
+          </h1>
+          <p className="text-kleos-text-muted text-sm mb-2">
+            Market ID{" "}
+            <code className="px-1.5 py-0.5 rounded bg-kleos-bg-card font-mono text-xs text-white/80">
+              {marketId}
+            </code>{" "}
+            doesn’t exist or couldn’t be loaded.
           </p>
-          <p className="text-muted-foreground text-sm mb-8">
+          <p className="text-kleos-text-subtle text-sm mb-8">
             It may not be on-chain yet or the RPC may be unavailable.
           </p>
-          <Button asChild size="lg">
+          <Button asChild size="lg" className="bg-kleos-primary text-kleos-bg font-semibold rounded-full">
             <Link href="/">← Back to Markets</Link>
           </Button>
         </div>
       </div>
-    )
+    );
   }
 
-  const userPosition = market.positions.find(p => p.user === walletAddress)
-  const canPlacePosition = market.status === 'Open' && isSolanaConnected && !userPosition
-  const isAdmin = market.protocol?.adminAuthority === walletAddress
+  const userPosition = market.positions.find((p) => p.user === walletAddress);
+  const canPlacePosition =
+    market.status === "Open" && isSolanaConnected && !userPosition;
+  const isAdmin = market.protocol?.adminAuthority === walletAddress;
 
   const handleOpenMarket = async () => {
     if (!isAdmin || !publicKey) {
-      toast.error('Only admin can open markets')
-      return
+      toast.error("Only admin can open markets");
+      return;
     }
-    const solanaWallet = wallets.find(w => w.address && !w.address.startsWith('0x') && w.address === walletAddress)
+    const solanaWallet = wallets.find(
+      (w) =>
+        w.address && !w.address.startsWith("0x") && w.address === walletAddress,
+    );
     if (!solanaWallet) {
-      toast.error('Solana wallet not found')
-      return
+      toast.error("Solana wallet not found");
+      return;
     }
-    setOpening(true)
+    setOpening(true);
     try {
-      const { getMarketPda } = await import('@/lib/solana/client')
-      const [marketPda] = await getMarketPda(BigInt(marketId))
-      const transaction = await client.openMarket(publicKey, marketPda)
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+      const { getMarketPda } = await import("@/lib/solana/client");
+      const [marketPda] = await getMarketPda(BigInt(marketId));
+      const transaction = await client.openMarket(publicKey, marketPda);
+      const { blockhash, lastValidBlockHeight } =
+        await connection.getLatestBlockhash();
       if (transaction instanceof Transaction) {
-        transaction.recentBlockhash = blockhash
-        transaction.feePayer = publicKey
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = publicKey;
       }
       const signResult = await solanaWallet.signAndSendTransaction({
-        transaction: transaction instanceof Transaction ? transaction.serialize({ requireAllSignatures: false, verifySignatures: false }) : transaction,
-        chain: 'solana:devnet',
-      })
-      const sigValue = typeof signResult === 'string' ? signResult : signResult.signature
-      const signature = typeof sigValue === 'string' ? sigValue : bs58.encode(sigValue)
-      await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
-      await marketsApi.open(marketId, { adminAuthority: walletAddress! })
-      toast.success('Market opened successfully!')
-      fetchMarket()
+        transaction:
+          transaction instanceof Transaction
+            ? transaction.serialize({
+                requireAllSignatures: false,
+                verifySignatures: false,
+              })
+            : transaction,
+        chain: "solana:devnet",
+      });
+      const sigValue =
+        typeof signResult === "string" ? signResult : signResult.signature;
+      const signature =
+        typeof sigValue === "string" ? sigValue : bs58.encode(sigValue);
+      await connection.confirmTransaction(
+        { signature, blockhash, lastValidBlockHeight },
+        "confirmed",
+      );
+      await marketsApi.open(marketId, { adminAuthority: walletAddress! });
+      toast.success("Market opened successfully!");
+      fetchMarket();
     } catch (error: any) {
-      toast.fromApiOrProgramError(error, 'Failed to open market')
+      toast.fromApiOrProgramError(error, "Failed to open market");
     } finally {
-      setOpening(false)
+      setOpening(false);
     }
-  }
+  };
 
   const handleCloseMarket = async () => {
     if (!isAdmin || !publicKey) {
-      toast.error('Only admin can close markets')
-      return
+      toast.error("Only admin can close markets");
+      return;
     }
-    const solanaWallet = wallets.find(w => w.address && !w.address.startsWith('0x') && w.address === walletAddress)
+    const solanaWallet = wallets.find(
+      (w) =>
+        w.address && !w.address.startsWith("0x") && w.address === walletAddress,
+    );
     if (!solanaWallet) {
-      toast.error('Solana wallet not found')
-      return
+      toast.error("Solana wallet not found");
+      return;
     }
-    setClosing(true)
+    setClosing(true);
     try {
-      const { getMarketPda } = await import('@/lib/solana/client')
-      const [marketPda] = await getMarketPda(BigInt(marketId))
-      const transaction = await client.closeMarket(publicKey, marketPda)
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+      const { getMarketPda } = await import("@/lib/solana/client");
+      const [marketPda] = await getMarketPda(BigInt(marketId));
+      const transaction = await client.closeMarket(publicKey, marketPda);
+      const { blockhash, lastValidBlockHeight } =
+        await connection.getLatestBlockhash();
       if (transaction instanceof Transaction) {
-        transaction.recentBlockhash = blockhash
-        transaction.feePayer = publicKey
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = publicKey;
       }
       const signResult = await solanaWallet.signAndSendTransaction({
-        transaction: transaction instanceof Transaction ? transaction.serialize({ requireAllSignatures: false, verifySignatures: false }) : transaction,
-        chain: 'solana:devnet',
-      })
-      const sigValue = typeof signResult === 'string' ? signResult : signResult.signature
-      const signature = typeof sigValue === 'string' ? sigValue : bs58.encode(sigValue)
-      await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
-      await marketsApi.close(marketId)
-      toast.success('Market closed successfully!')
-      fetchMarket()
+        transaction:
+          transaction instanceof Transaction
+            ? transaction.serialize({
+                requireAllSignatures: false,
+                verifySignatures: false,
+              })
+            : transaction,
+        chain: "solana:devnet",
+      });
+      const sigValue =
+        typeof signResult === "string" ? signResult : signResult.signature;
+      const signature =
+        typeof sigValue === "string" ? sigValue : bs58.encode(sigValue);
+      await connection.confirmTransaction(
+        { signature, blockhash, lastValidBlockHeight },
+        "confirmed",
+      );
+      await marketsApi.close(marketId);
+      toast.success("Market closed successfully!");
+      fetchMarket();
     } catch (error: any) {
-      toast.fromApiOrProgramError(error, 'Failed to close market')
+      toast.fromApiOrProgramError(error, "Failed to close market");
     } finally {
-      setClosing(false)
+      setClosing(false);
     }
-  }
+  };
 
   const handleSettleMarket = async () => {
     if (!isAdmin || !publicKey || winningItem === null) {
-      toast.error('Please select winning item and ensure you are admin')
-      return
+      toast.error("Please select winning item and ensure you are admin");
+      return;
     }
     if (!market.protocol?.treasury) {
-      toast.error('Protocol treasury not found')
-      return
+      toast.error("Protocol treasury not found");
+      return;
     }
-    const solanaWallet = wallets.find(w => w.address && !w.address.startsWith('0x') && w.address === walletAddress)
+    const solanaWallet = wallets.find(
+      (w) =>
+        w.address && !w.address.startsWith("0x") && w.address === walletAddress,
+    );
     if (!solanaWallet) {
-      toast.error('Solana wallet not found')
-      return
+      toast.error("Solana wallet not found");
+      return;
     }
-    setSettling(true)
+    setSettling(true);
     try {
-      const { getMarketPda } = await import('@/lib/solana/client')
-      const [marketPda] = await getMarketPda(BigInt(marketId))
-      const tokenMintPubkey = new PublicKey(market.tokenMint)
-      const treasuryPubkey = new PublicKey(market.protocol.treasury)
-      const transaction = await client.settleMarket(publicKey, marketPda, tokenMintPubkey, treasuryPubkey)
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+      const { getMarketPda } = await import("@/lib/solana/client");
+      const [marketPda] = await getMarketPda(BigInt(marketId));
+      const tokenMintPubkey = new PublicKey(market.tokenMint);
+      const treasuryPubkey = new PublicKey(market.protocol.treasury);
+      const transaction = await client.settleMarket(
+        publicKey,
+        marketPda,
+        tokenMintPubkey,
+        treasuryPubkey,
+      );
+      const { blockhash, lastValidBlockHeight } =
+        await connection.getLatestBlockhash();
       if (transaction instanceof Transaction) {
-        transaction.recentBlockhash = blockhash
-        transaction.feePayer = publicKey
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = publicKey;
       }
       const signResult = await solanaWallet.signAndSendTransaction({
-        transaction: transaction instanceof Transaction ? transaction.serialize({ requireAllSignatures: false, verifySignatures: false }) : transaction,
-        chain: 'solana:devnet',
-      })
-      const sigValue = typeof signResult === 'string' ? signResult : signResult.signature
-      const signature = typeof sigValue === 'string' ? sigValue : bs58.encode(sigValue)
-      await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
-      await marketsApi.settle(marketId, { winningItemIndex: winningItem })
-      toast.success('Market settled successfully!')
-      fetchMarket()
+        transaction:
+          transaction instanceof Transaction
+            ? transaction.serialize({
+                requireAllSignatures: false,
+                verifySignatures: false,
+              })
+            : transaction,
+        chain: "solana:devnet",
+      });
+      const sigValue =
+        typeof signResult === "string" ? signResult : signResult.signature;
+      const signature =
+        typeof sigValue === "string" ? sigValue : bs58.encode(sigValue);
+      await connection.confirmTransaction(
+        { signature, blockhash, lastValidBlockHeight },
+        "confirmed",
+      );
+      await marketsApi.settle(marketId, { winningItemIndex: winningItem });
+      toast.success("Market settled successfully!");
+      fetchMarket();
     } catch (error: any) {
-      toast.fromApiOrProgramError(error, 'Failed to settle market')
+      toast.fromApiOrProgramError(error, "Failed to settle market");
     } finally {
-      setSettling(false)
+      setSettling(false);
     }
-  }
+  };
 
   const handleClaimPayout = async (positionId: string) => {
-    if (!walletAddress || !publicKey) return
-    const solanaWallet = wallets.find(w => w.address && !w.address.startsWith('0x') && w.address === walletAddress)
+    if (!walletAddress || !publicKey) return;
+    const solanaWallet = wallets.find(
+      (w) =>
+        w.address && !w.address.startsWith("0x") && w.address === walletAddress,
+    );
     if (!solanaWallet) {
-      toast.error('Solana wallet not found')
-      return
+      toast.error("Solana wallet not found");
+      return;
     }
-    setClaiming(true)
+    setClaiming(true);
     try {
-      const { getMarketPda } = await import('@/lib/solana/client')
-      const [marketPda] = await getMarketPda(BigInt(marketId))
-      const tokenMintPubkey = new PublicKey(market.tokenMint)
-      const transaction = await client.claimPayout(publicKey, marketPda, tokenMintPubkey)
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+      const { getMarketPda } = await import("@/lib/solana/client");
+      const [marketPda] = await getMarketPda(BigInt(marketId));
+      const tokenMintPubkey = new PublicKey(market.tokenMint);
+      const transaction = await client.claimPayout(
+        publicKey,
+        marketPda,
+        tokenMintPubkey,
+      );
+      const { blockhash, lastValidBlockHeight } =
+        await connection.getLatestBlockhash();
       if (transaction instanceof Transaction) {
-        transaction.recentBlockhash = blockhash
-        transaction.feePayer = publicKey
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = publicKey;
       }
       const signResult = await solanaWallet.signAndSendTransaction({
-        transaction: transaction instanceof Transaction ? transaction.serialize({ requireAllSignatures: false, verifySignatures: false }) : transaction,
-        chain: 'solana:devnet',
-      })
-      const sigValue = typeof signResult === 'string' ? signResult : signResult.signature
-      const signature = typeof sigValue === 'string' ? sigValue : bs58.encode(sigValue)
-      await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
-      await positionsApi.claim(positionId, { user: walletAddress })
-      toast.success('Payout claimed successfully!')
-      fetchMarket()
+        transaction:
+          transaction instanceof Transaction
+            ? transaction.serialize({
+                requireAllSignatures: false,
+                verifySignatures: false,
+              })
+            : transaction,
+        chain: "solana:devnet",
+      });
+      const sigValue =
+        typeof signResult === "string" ? signResult : signResult.signature;
+      const signature =
+        typeof sigValue === "string" ? sigValue : bs58.encode(sigValue);
+      await connection.confirmTransaction(
+        { signature, blockhash, lastValidBlockHeight },
+        "confirmed",
+      );
+      await positionsApi.claim(positionId, { user: walletAddress });
+      toast.success("Payout claimed successfully!");
+      fetchMarket();
     } catch (error: any) {
-      toast.fromApiOrProgramError(error, 'Failed to claim payout')
+      toast.fromApiOrProgramError(error, "Failed to claim payout");
     } finally {
-      setClaiming(false)
+      setClaiming(false);
     }
-  }
+  };
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Back + breadcrumb */}
-        <nav className="mb-6">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <span aria-hidden>←</span> Markets
-          </Link>
-        </nav>
+    <main className="min-h-screen bg-kleos-bg pt-6 lg:pt-20 pb-24 lg:pb-12">
+      <div className="max-w-md md:max-w-2xl lg:max-w-4xl mx-auto px-5 md:px-6 lg:px-8">
+        <button
+          onClick={() => router.back()}
+          className="mb-6 flex items-center group"
+        >
+          <span className="text-kleos-primary text-xl leading-none font-bold group-hover:-translate-x-1 transition-transform">
+            ‹
+          </span>
+          <span className="text-kleos-primary font-semibold text-base ml-1">
+            Back
+          </span>
+        </button>
 
-        {/* Hero: title + status */}
-        <header className="mb-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                {market.title || `Market #${market.marketId}`}
-              </h1>
-              {market.title && (
-                <p className="mt-1 text-sm text-muted-foreground">ID {market.marketId}</p>
-              )}
-            </div>
-            <Badge
-              variant="outline"
-              className={cn(
-                'shrink-0 text-xs font-medium uppercase tracking-wide px-3 py-1',
-                getStatusColor(market.status)
-              )}
-            >
-              {market.status}
-            </Badge>
-          </div>
-        </header>
+        <h1 className="text-3xl font-bold capitalize text-white mb-3 tracking-tight leading-tight">
+          {market.title || `Market #${market.marketId}`}
+        </h1>
 
-        {/* Stats strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-8">
-          <div className="rounded-xl border bg-card p-4 col-span-2 sm:col-span-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Time</p>
-            <MarketCountdown
-              startTs={market.startTs}
-              endTs={market.endTs}
-              status={market.status}
-              className="justify-start"
-            />
-          </div>
-          {market.status === 'Open' && market.phase && (
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Phase</p>
-              <Badge
-                variant="outline"
-                className={cn(
-                  'text-xs font-medium',
-                  market.phase === 'early'
-                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                    : market.phase === 'mid'
-                      ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                      : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
-                )}
-              >
-                {market.phase === 'early' ? 'Early' : market.phase === 'mid' ? 'Mid' : 'Late'}
-              </Badge>
-            </div>
+        <div className="flex items-center gap-3 mt-1 mb-6">
+        {market.status === "Open" && (
+            <>
+              <div className="w-px bg-white/10" />
+              <div className="flex-1 flex flex-col justify-center py-2 px-4 text-center min-w-0">
+                <span className="text-white font-secondary font-bold text-3xl mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
+                  <MarketCountdown
+                    startTs={market.startTs}
+                    endTs={market.endTs}
+                    status={market.status}
+                    variant="plain"
+                  />
+                </span>
+              </div>
+            </>
           )}
-          <div className="rounded-xl border bg-card p-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Positions</p>
-            <p className="text-lg font-semibold tabular-nums">{market.positionsCount}</p>
-          </div>
-          <div className="rounded-xl border bg-card p-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Total stake</p>
-            <p className="text-lg font-semibold tabular-nums">{(Number(market.totalRawStake) / 1e9).toFixed(2)} SOL</p>
-          </div>
-          {(market.winningItemIndex !== null) && (
-            <div className="rounded-xl border bg-card p-4 col-span-2 sm:col-span-1">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Winner</p>
-              <p className="text-lg font-semibold text-amber-600 dark:text-amber-400">Item #{market.winningItemIndex}</p>
+          {market.status === "Settled" && (
+            <div className="px-3 py-1 rounded-full bg-kleos-bg-card border border-kleos-border">
+              <span className="text-kleos-text-muted text-xs font-bold uppercase tracking-widest">
+                Resolved
+              </span>
             </div>
           )}
         </div>
 
-        {/* Options card */}
-        <Card className="mb-6 overflow-hidden">
-          <CardHeader className="pb-3">
-            <h2 className="text-base font-semibold">Options</h2>
-            <div className="mt-2">
-              <MarketCountdown
-                startTs={market.startTs}
-                endTs={market.endTs}
-                status={market.status}
-              />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <MarketItemsDisplay
-              itemsHash={market.itemsHash}
-              itemCount={market.itemCount}
-              items={market.items}
-              selectedItemIndex={selectedItem}
-              onSelectItem={setSelectedItem}
-              disabled={market.status !== 'Open' || !!userPosition}
-              winningItemIndex={market.winningItemIndex}
-            />
-          </CardContent>
-        </Card>
+        <div className="flex items-stretch gap-0 w-full mt-4 mb-8 rounded-2xl overflow-hidden border border-kleos-border bg-white/[0.03]">
+          <div className="flex-1 min-w-0 flex flex-col justify-center py-4 px-3 text-center">
+            <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
+              Options
+            </span>
+            <span className="text-white font-secondary font-bold text-xl mt-0.5">
+              {market.itemCount}
+            </span>
+          </div>
+          <div className="w-px bg-white/10 shrink-0" />
+          <div className="flex-1 min-w-0 flex flex-col justify-center py-4 px-3 text-center">
+            <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
+              Positions
+            </span>
+            <span className="text-white font-secondary font-bold text-xl mt-0.5">
+              {market.positionsCount}
+            </span>
+          </div>
+          <div className="w-px bg-white/10 shrink-0" />
+          <div className="flex-shrink-0 min-w-[5.5rem] flex flex-col justify-center py-4 px-3 text-center">
+            <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
+              Pool
+            </span>
+            <span className="text-white font-secondary font-bold text-xl mt-0.5 whitespace-nowrap">
+              {market.totalRawStake
+                ? (Number(market.totalRawStake) / 1e9).toFixed(2)
+                : "0.00"}{" "}
+              SOL
+            </span>
+          </div>
+        </div>
 
-        {/* Your position (when present) */}
         {userPosition && (
-          <Card className="mb-6 border-primary/20 bg-primary/5">
-            <CardHeader className="pb-2">
-              <h2 className="text-base font-semibold">Your position</h2>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-6 sm:gap-8">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Option</p>
-                  <p className="font-semibold">#{userPosition.selectedItemIndex}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Stake</p>
-                  <p className="font-semibold tabular-nums">{(Number(userPosition.rawStake) / 1e9).toFixed(4)} SOL</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Influence</p>
-                  <p className="font-semibold tabular-nums">{(Number(userPosition.effectiveStake) / 1e9).toFixed(4)} SOL</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Claimed</p>
-                  <p className="font-medium">{userPosition.claimed ? 'Yes' : 'No'}</p>
-                </div>
-              </div>
-              {market.status === 'Settled' && !userPosition.claimed && userPosition.selectedItemIndex === market.winningItemIndex && (
-                <Button
-                  className="mt-4"
-                  onClick={() => handleClaimPayout(userPosition.id)}
-                  disabled={claiming}
-                >
-                  {claiming ? 'Claiming…' : 'Claim payout'}
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+          <div className="mb-4">
+            <div className="p-4 rounded-2xl border border-kleos-border bg-kleos-bg-card">
+              <p className="text-kleos-text-muted text-xs mb-1">Your position</p>
+              <p className="text-white font-semibold">
+                #{userPosition.selectedItemIndex} —{" "}
+                {(Number(userPosition.effectiveStake) / 1e9).toFixed(2)} SOL
+                effective
+              </p>
+              {market.status === "Settled" &&
+                !userPosition.claimed &&
+                userPosition.selectedItemIndex === market.winningItemIndex && (
+                  <button
+                    className="mt-4 w-full bg-kleos-primary text-kleos-bg font-semibold py-3 rounded-xl disabled:opacity-50 transition-opacity hover:opacity-90"
+                    onClick={() => handleClaimPayout(userPosition.id)}
+                    disabled={claiming}
+                  >
+                    {claiming ? "Claiming…" : "Claim payout"}
+                  </button>
+                )}
+            </div>
+          </div>
         )}
 
-        {/* Place position (open + no position) */}
-        {market.status === 'Open' && !userPosition && (
-          <Card className="mb-6">
-            <CardHeader className="pb-3">
-              <h2 className="text-base font-semibold">Place a position</h2>
-              <p className="text-sm text-muted-foreground">
-                Pick an option above and stake SOL. Your influence is boosted by credibility and timing.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {!authenticated || !isSolanaConnected ? (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    Connect your Solana wallet to participate.
-                  </p>
-                  <Button
-                    className="w-full sm:w-auto"
-                    onClick={connectSolanaWallet}
-                    disabled={connecting || !ready}
-                  >
-                    {connecting ? 'Connecting…' : 'Connect wallet'}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <Label className="text-sm">Stake (SOL)</Label>
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={rawStake}
-                      onChange={(e) => {
-                        const value = e.target.value
-                        // Allow empty, numbers, and single decimal point
-                        // Prevent multiple decimal points
-                        if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                          // Prevent more than 9 decimal places (lamports precision)
-                          const parts = value.split('.')
-                          if (parts.length === 1 || (parts.length === 2 && parts[1].length <= 9)) {
-                            setRawStake(value)
-                          }
-                        }
-                      }}
-                      onBlur={(e) => {
-                        // Format on blur: remove trailing zeros and decimal point if not needed
-                        const value = e.target.value.trim()
-                        if (value === '' || value === '.') {
-                          setRawStake('')
-                          return
-                        }
-                        const num = parseFloat(value)
-                        if (!isNaN(num) && num > 0) {
-                          // Format to remove unnecessary trailing zeros, but keep up to 9 decimal places
-                          setRawStake(num.toString())
-                        } else {
-                          setRawStake('')
-                        }
-                      }}
-                      placeholder="0.5"
-                      className="max-w-[180px]"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Select an option above first. Influence is calculated when you place.
-                    </p>
-                  </div>
-                  {rawStake && Number(rawStake) > 0 && (
-                    <div className="rounded-lg border border-border/80 bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-                      Influence uses credibility, early-signal bonus, and streak (max 3×).
-                    </div>
-                  )}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button
-                      onClick={handlePlacePosition}
-                      disabled={placingPosition || selectedItem === null || !rawStake || Number(rawStake) <= 0}
+        {market.status === "Open" && !userPosition && (
+          <div className="mb-8 mt-6">
+            <h2 className="text-lg font-bold text-white mb-4">
+              Pick your champion
+            </h2>
+
+            <div className="flex flex-col gap-3">
+              {market.items
+                ? market.items.map((itemName, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedItem(index)}
+                      className={cn(
+                        "p-5 rounded-2xl border-2 transition-colors text-left flex justify-between items-center",
+                        selectedItem === index
+                          ? "bg-emerald-500/20 border-emerald-400 text-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.25)]"
+                          : "border-white/10 bg-kleos-bg-card hover:border-white/20 text-white"
+                      )}
                     >
-                      {placingPosition ? 'Placing…' : 'Place position'}
-                    </Button>
-                    {selectedItem === null && (
-                      <span className="text-xs text-muted-foreground">Select an option above.</span>
+                      <span className="font-semibold text-lg">
+                        {itemName}
+                      </span>
+                      {selectedItem === index && (
+                        <div className="w-5 h-5 rounded-full bg-emerald-400 flex items-center justify-center">
+                          <span className="text-white text-xs">✓</span>
+                        </div>
+                      )}
+                    </button>
+                  ))
+                : Array.from({ length: market.itemCount }).map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedItem(index)}
+                      className={cn(
+                        "p-5 rounded-2xl border-2 transition-colors text-left flex justify-between items-center",
+                        selectedItem === index
+                          ? "bg-emerald-500/20 border-emerald-400 text-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.25)]"
+                          : "border-white/10 bg-kleos-bg-card hover:border-white/20 text-white"
+                      )}
+                    >
+                      <span className="font-semibold text-lg">
+                        Item #{index}
+                      </span>
+                      {selectedItem === index && (
+                        <div className="w-5 h-5 rounded-full bg-emerald-400 flex items-center justify-center">
+                          <span className="text-white text-xs">✓</span>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+            </div>
+
+            <div className="mt-8 mb-8">
+              <h2 className="text-lg font-bold text-white mb-4">
+                Amount (SOL)
+              </h2>
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                {["0.1", "0.5", "1", "5"].map((a) => (
+                  <button
+                    key={a}
+                    onClick={() => setRawStake(a)}
+                    className={cn(
+                      "px-5 py-3 rounded-2xl border transition-colors",
+                      rawStake === a
+                        ? "bg-emerald-500/20 border-emerald-400"
+                        : "bg-kleos-bg-card border-kleos-border hover:bg-kleos-bg-elevated"
                     )}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Closed / settled, no position */}
-        {market.status !== 'Open' && !userPosition && (
-          <Card className="mb-6">
-            <CardContent className="py-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                This market is {market.status.toLowerCase()}. Betting is only available when it’s open.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Admin: Draft */}
-        {isAdmin && market.status === 'Draft' && (
-          <Card className="mb-6 border-primary/30 bg-primary/5">
-            <CardHeader className="pb-2">
-              <h2 className="text-base font-semibold text-primary">Admin</h2>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              <Button onClick={() => setShowEditModal(true)} variant="outline" size="sm">
-                Edit market
-              </Button>
-              <Button onClick={handleOpenMarket} disabled={opening} size="sm">
-                {opening ? 'Opening…' : 'Open market'}
-              </Button>
-            </CardContent>
-            <EditMarketModal
-              isOpen={showEditModal}
-              onClose={() => setShowEditModal(false)}
-              onSuccess={() => { setShowEditModal(false); fetchMarket() }}
-              market={{
-                marketId: market.marketId,
-                itemsHash: market.itemsHash,
-                itemCount: market.itemCount,
-                startTs: market.startTs,
-                endTs: market.endTs,
-                items: market.items,
-              }}
-            />
-          </Card>
-        )}
-
-        {/* Admin: Open */}
-        {isAdmin && market.status === 'Open' && (
-          <Card className="mb-6 border-primary/30 bg-primary/5">
-            <CardHeader className="pb-2">
-              <h2 className="text-base font-semibold text-primary">Admin</h2>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={handleCloseMarket} disabled={closing} size="sm" variant="destructive">
-                {closing ? 'Closing…' : 'Close market'}
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Admin: Closed — settle */}
-        {isAdmin && market.status === 'Closed' && (
-          <Card className="mb-6 border-primary/30 bg-primary/5">
-            <CardHeader className="pb-2">
-              <h2 className="text-base font-semibold text-primary">Settle market</h2>
-              <p className="text-xs text-muted-foreground">Choose the winning option.</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {Array.from({ length: market.itemCount }, (_, i) => (
-                  <Button
-                    key={i}
-                    type="button"
-                    variant={winningItem === i ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setWinningItem(i)}
                   >
-                    {i}
-                  </Button>
+                    <span
+                      className={cn(
+                        "font-bold",
+                        rawStake === a ? "text-emerald-400" : "text-white/80"
+                      )}
+                    >
+                      {a}
+                    </span>
+                  </button>
                 ))}
               </div>
-              <Button
-                onClick={handleSettleMarket}
-                disabled={settling || winningItem === null}
-                size="sm"
+
+              <div className="bg-kleos-bg-card rounded-2xl border border-kleos-border px-6 py-5">
+                <p className="text-kleos-text-muted text-[10px] uppercase font-bold tracking-widest mb-3">
+                  Raw stake (SOL)
+                </p>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={rawStake}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                      const parts = value.split(".");
+                      if (
+                        parts.length === 1 ||
+                        (parts.length === 2 && parts[1].length <= 9)
+                      ) {
+                        setRawStake(value);
+                      }
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const value = e.target.value.trim();
+                    if (value === "" || value === ".") {
+                      setRawStake("");
+                      return;
+                    }
+                    const num = parseFloat(value);
+                    if (!isNaN(num) && num > 0) {
+                      setRawStake(num.toString());
+                    } else {
+                      setRawStake("");
+                    }
+                  }}
+                  placeholder="0.00"
+                  className="bg-transparent border-none text-white text-4xl font-semibold p-0 focus:outline-none focus:ring-0 w-full placeholder:text-kleos-text-subtle"
+                />
+              </div>
+
+              {rawStake && Number(rawStake) > 0 && selectedItem !== null && (
+                <div className="bg-kleos-bg-card rounded-2xl border border-kleos-border px-6 py-5 mt-3 animate-fade-in">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-kleos-text-muted text-[10px] uppercase font-bold tracking-widest">
+                      Effective stake
+                    </span>
+                    <span className="text-emerald-400/80 text-xs font-bold uppercase tracking-widest">
+                      Multiplier Applied
+                    </span>
+                  </div>
+                  <p className="text-emerald-400 text-2xl font-semibold">
+                    ~{(Number(rawStake) * 1.5).toFixed(2)} SOL
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {!authenticated || !isSolanaConnected ? (
+              <button
+                className="w-full bg-kleos-bg-card border border-kleos-border text-white font-bold py-4 rounded-2xl hover:bg-kleos-bg-elevated transition-colors"
+                onClick={connectSolanaWallet}
+                disabled={connecting || !ready}
               >
-                {settling ? 'Settling…' : 'Settle'}
-              </Button>
-            </CardContent>
-          </Card>
+                {connecting ? "Connecting…" : "Connect wallet to stake"}
+              </button>
+            ) : (
+              <button
+                onClick={handlePlacePosition}
+                disabled={
+                  placingPosition ||
+                  selectedItem === null ||
+                  !rawStake ||
+                  Number(rawStake) <= 0
+                }
+                
+                className="w-full bg-kleos-primary text-kleos-bg font-bold py-4 rounded-2xl disabled:opacity-50 disabled:bg-kleos-bg-card disabled:text-kleos-text-muted transition-all"
+              >
+                {placingPosition ? "Placing…" : "Stake & Lock"}
+              </button>
+            )}
+            
+          </div>
         )}
 
-        {/* Positions table */}
-        <Card>
-          <CardHeader className="pb-3">
-            <h2 className="text-base font-semibold">Positions</h2>
-            <p className="text-xs text-muted-foreground">{market.positions.length} total</p>
-          </CardHeader>
-          <CardContent className="p-0">
-            {market.positions.length === 0 ? (
-              <div className="py-12 text-center text-sm text-muted-foreground border-t">
-                No positions yet
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/30">
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground">User</th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground">Option</th>
-                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Stake</th>
-                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Influence</th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground">Claimed</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {market.positions.map((position) => (
-                      <tr
-                        key={position.id}
-                        className={cn(
-                          'border-b border-border/50 last:border-0 transition-colors',
-                          position.user === walletAddress && 'bg-primary/5'
-                        )}
-                      >
-                        <td className="py-3 px-4 font-mono text-xs">
-                          {position.user.slice(0, 6)}…{position.user.slice(-4)}
-                        </td>
-                        <td className="py-3 px-4 font-medium">#{position.selectedItemIndex}</td>
-                        <td className="py-3 px-4 text-right tabular-nums">{(Number(position.rawStake) / 1e9).toFixed(4)}</td>
-                        <td className="py-3 px-4 text-right tabular-nums">{(Number(position.effectiveStake) / 1e9).toFixed(4)}</td>
-                        <td className="py-3 px-4">
-                          <Badge variant={position.claimed ? 'default' : 'secondary'} className="text-xs">
-                            {position.claimed ? 'Yes' : 'No'}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        {!userPosition && market.status !== "Open" && market.items && (
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-white mb-3">
+              Contenders
+            </h2>
+            <div className="flex flex-col gap-2">
+              {market.items.map((item, index) => (
+                <div
+                  key={index}
+                  className="p-3 bg-kleos-bg-card rounded-xl border border-kleos-border"
+                >
+                  <span className="text-white font-medium">{item}</span>
+                  {market.winningItemIndex === index && (
+                    <span className="text-emerald-400 text-xs ml-2">
+                      • Winner
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {market.status !== "Open" && !userPosition && (
+          <div className="mb-6 p-8 text-center bg-kleos-bg-card rounded-2xl border border-kleos-border">
+            <p className="text-sm text-kleos-text-muted">
+              This market is {market.status.toLowerCase()}. Betting is only
+              available when it’s open.
+            </p>
+          </div>
+        )}
+
+        {isAdmin && (
+          <div className="mt-8 p-5 bg-kleos-bg-elevated border border-kleos-border rounded-2xl">
+            <h2 className="text-base font-semibold text-kleos-primary mb-3">
+              Admin Panel
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {market.status === "Draft" && (
+                <>
+                  <button
+                    onClick={() => setShowEditModal(true)}
+                    className="px-4 py-2 bg-kleos-bg-card text-white rounded-xl text-sm border border-kleos-border"
+                  >
+                    Edit market
+                  </button>
+                  <button
+                    onClick={handleOpenMarket}
+                    disabled={opening}
+                    className="px-4 py-2 bg-kleos-primary text-kleos-bg rounded-xl text-sm font-medium"
+                  >
+                    {opening ? "Opening…" : "Open market"}
+                  </button>
+                </>
+              )}
+              {market.status === "Open" && (
+                <button
+                  onClick={handleCloseMarket}
+                  disabled={closing}
+                  className="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-sm font-medium"
+                >
+                  {closing ? "Closing…" : "Close market"}
+                </button>
+              )}
+            </div>
+
+            {market.status === "Closed" && (
+              <div className="mt-4">
+                <p className="text-xs tracking-wider uppercase text-white/50 mb-3 font-bold">
+                  Select Winner Item Index:
+                </p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {Array.from({ length: market.itemCount }, (_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className={cn(
+                      "px-4 py-2 rounded-xl text-sm font-medium border",
+                      winningItem === i
+                        ? "bg-kleos-primary text-kleos-bg border-kleos-primary"
+                        : "bg-kleos-bg-card text-white/70 border-kleos-border"
+                    )}
+                      onClick={() => setWinningItem(i)}
+                    >
+                      {i}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={handleSettleMarket}
+                  disabled={settling || winningItem === null}
+                  className="px-4 py-2 bg-kleos-primary text-kleos-bg disabled:opacity-50 rounded-xl text-sm font-medium"
+                >
+                  {settling ? "Settling…" : "Settle Market"}
+                </button>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        )}
 
-        {/* Collapsed details: token mint + times (optional, for devs) */}
         <details className="mt-8 group">
-          <summary className="text-xs text-muted-foreground cursor-pointer list-none py-2 hover:text-foreground">
+          <summary className="text-xs text-kleos-text-muted cursor-pointer list-none py-2 hover:text-white transition-colors">
             Technical details
           </summary>
-          <div className="mt-2 rounded-lg border bg-muted/20 p-4 font-mono text-xs text-muted-foreground break-all space-y-1">
-            <p><span className="text-foreground/70">Token:</span> {market.tokenMint}</p>
-            <p><span className="text-foreground/70">Start:</span> {formatTimestamp(market.startTs)}</p>
-            <p><span className="text-foreground/70">End:</span> {formatTimestamp(market.endTs)}</p>
+          <div className="mt-2 rounded-2xl border border-kleos-border bg-kleos-bg-card p-4 font-mono text-[10px] text-kleos-text-muted break-all space-y-1">
+            <p>
+              <span className="text-white/50">Token:</span> {market.tokenMint}
+            </p>
+            <p>
+              <span className="text-white/50">Start:</span>{" "}
+              {formatTimestamp(market.startTs)}
+            </p>
+            <p>
+              <span className="text-white/50">End:</span>{" "}
+              {formatTimestamp(market.endTs)}
+            </p>
           </div>
         </details>
       </div>
     </main>
-  )
+  );
 }

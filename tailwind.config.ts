@@ -10,6 +10,23 @@ const config: Config = {
   theme: {
   	extend: {
   		colors: {
+  			// Kleos theme (matches mobile app)
+  			kleos: {
+  				primary: '#ffffff',
+  				'primary-muted': '#a3a3a3',
+  				'primary-dark': '#e5e5e5',
+  				bg: '#000000',
+  				'bg-card': '#0a0a0a',
+  				'bg-elevated': '#171717',
+  				surface: '#0a0a0a',
+  				'surface-muted': '#171717',
+  				'text-muted': '#a3a3a3',
+  				'text-subtle': '#737373',
+  				success: '#ffffff',
+  				warning: '#737373',
+  				error: '#ffffff',
+  				border: '#262626',
+  			},
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {
@@ -53,7 +70,13 @@ const config: Config = {
   		},
   		fontFamily: {
   			sans: [
+  				'var(--font-inter)',
   				'Inter',
+  				'system-ui',
+  				'sans-serif'
+  			],
+  			secondary: [
+  				'var(--font-ntbrick)',
   				'system-ui',
   				'sans-serif'
   			],

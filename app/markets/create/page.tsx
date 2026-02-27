@@ -208,8 +208,8 @@ export default function CreateMarketPage() {
   }
 
   return (
-    <main className="min-h-screen">
-      <div className="max-w-6xl mx-auto px-6 py-10">
+    <main className="min-h-screen pt-6 lg:pt-20 pb-24 lg:pb-12">
+      <div className="max-w-6xl mx-auto px-6 py-6 md:py-10">
         <header className="flex items-center justify-between gap-6 mb-12 pb-8 border-b border-border min-h-[52px]">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Create Market</h1>
