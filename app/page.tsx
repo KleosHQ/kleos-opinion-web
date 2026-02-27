@@ -148,9 +148,9 @@ export default function Home() {
   const showLanding = !authenticated || !isSolanaConnected;
 
   return (
-    <main className={showLanding ? "h-screen overflow-hidden bg-kleos-bg" : "min-h-screen bg-kleos-bg pb-24"}>
+    <main className={showLanding ? "h-screen overflow-hidden bg-kleos-bg" : "min-h-screen bg-kleos-bg pt-6 lg:pt-20 pb-24 lg:pb-12"}>
       {showLanding ? (
-        <section className="fixed inset-0 flex flex-col justify-between py-4 px-6 bg-kleos-bg overflow-hidden">
+        <section className="fixed inset-0 flex flex-col justify-between py-4 px-6 md:py-8 md:px-12 lg:max-w-2xl lg:mx-auto lg:left-0 lg:right-0 bg-kleos-bg overflow-hidden">
           <div className="flex items-center justify-center px-4 py-2">
             <div className="w-[40vw] min-w-[120px] max-w-[180px] aspect-[40/14] relative">
               <Image
@@ -189,7 +189,7 @@ export default function Home() {
           </div>
         </section>
       ) : (
-        <div className="max-w-md mx-auto px-4 sm:px-5 pt-6 pb-12">
+        <div className="max-w-md md:max-w-4xl lg:max-w-6xl mx-auto px-4 sm:px-5 md:px-6 lg:px-8 pb-12 md:pb-16">
           <header className="flex items-center justify-between mb-4 pb-4">
             <h1 className="text-2xl font-bold font-secondary text-white">Markets</h1>
             <div className="flex items-center gap-3">
@@ -277,16 +277,17 @@ export default function Home() {
           </div>
 
           {loading ? (
-            <div className="space-y-4">
+            <div className="space-y-4 md:grid md:grid-cols-2 md:gap-6 md:space-y-0 lg:grid-cols-3 lg:gap-8">
               <div className="h-48 rounded-3xl bg-[#1C1C1E] animate-pulse" />
               <div className="h-48 rounded-3xl bg-[#1C1C1E] animate-pulse" />
+              <div className="h-48 rounded-3xl bg-[#1C1C1E] animate-pulse hidden lg:block" />
             </div>
           ) : markets.length === 0 ? (
             <div className="py-20 text-center text-white/50">
               {isAdmin ? "No markets yet. Create one from Admin." : "No open markets yet."}
             </div>
           ) : viewMode === "grid" ? (
-            <div className="space-y-8">
+            <div className="space-y-8 md:grid md:grid-cols-2 md:gap-6 md:space-y-0 lg:grid-cols-3 lg:gap-8">
               {markets.map((market) => (
                 <MarketCard key={market.id} market={market} />
               ))}

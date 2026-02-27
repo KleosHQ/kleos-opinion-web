@@ -205,8 +205,8 @@ export default function PositionsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-kleos-bg pb-24">
-      <div className="max-w-md mx-auto px-5 pt-6 pb-4">
+    <main className="min-h-screen bg-kleos-bg pt-6 lg:pt-20 pb-24 lg:pb-12">
+      <div className="max-w-md md:max-w-2xl lg:max-w-4xl mx-auto px-5 md:px-6 lg:px-8 pb-4">
         <header className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold font-secondary text-white">Portfolio</h1>
           <div className="flex gap-2">
@@ -282,7 +282,7 @@ export default function PositionsPage() {
           </div>
 
           {tab === "active" && (
-            <div className="space-y-4">
+            <div className="space-y-4 md:grid md:grid-cols-2 md:gap-4 md:space-y-0 lg:grid-cols-3 lg:gap-6">
                 {loading ? (
                   <div className="space-y-4">
                     <div className="animate-pulse bg-kleos-bg-card h-20 rounded-2xl border border-kleos-border" />
@@ -290,7 +290,7 @@ export default function PositionsPage() {
                     <div className="animate-pulse bg-kleos-bg-card h-20 rounded-2xl border border-kleos-border" />
                   </div>
                 ) : active.length === 0 ? (
-                  <div className="py-16 text-center">
+                  <div className="py-16 text-center md:col-span-2 lg:col-span-3">
                     <p className="text-kleos-text-muted">No active positions</p>
                     <Link
                       href="/"
@@ -319,14 +319,14 @@ export default function PositionsPage() {
           )}
 
           {tab === "claim" && (
-            <div className="space-y-4">
+            <div className="space-y-4 md:grid md:grid-cols-2 md:gap-4 md:space-y-0 lg:grid-cols-3 lg:gap-6">
                 {loading ? (
                   <div className="space-y-4">
                     <div className="animate-pulse bg-kleos-bg-card h-24 rounded-2xl border border-kleos-border" />
                     <div className="animate-pulse bg-kleos-bg-card h-24 rounded-2xl border border-kleos-border" />
                   </div>
                 ) : claimable.length === 0 ? (
-                  <div className="py-16 text-center">
+                  <div className="py-16 text-center md:col-span-2 lg:col-span-3">
                     <p className="text-kleos-text-muted">Nothing to claim</p>
                     <Link
                       href="/"
@@ -364,7 +364,7 @@ export default function PositionsPage() {
           )}
 
           {tab === "history" && (
-            <div className="space-y-4">
+            <div className="space-y-4 md:grid md:grid-cols-2 md:gap-4 md:space-y-0 lg:grid-cols-3 lg:gap-6">
                 {loading ? (
                   <div className="space-y-4">
                     <div className="animate-pulse bg-kleos-bg-card h-20 rounded-2xl border border-kleos-border" />
@@ -372,7 +372,7 @@ export default function PositionsPage() {
                     <div className="animate-pulse bg-kleos-bg-card h-20 rounded-2xl border border-kleos-border" />
                   </div>
                 ) : history.length === 0 ? (
-                  <div className="py-16 text-center">
+                  <div className="py-16 text-center md:col-span-2 lg:col-span-3">
                     <p className="text-kleos-text-muted">No history yet</p>
                     <Link
                       href="/"

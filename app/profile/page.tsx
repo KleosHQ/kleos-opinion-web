@@ -149,8 +149,8 @@ export default function ProfilePage() {
     walletAddress.slice(0, 6) + "…" + walletAddress.slice(-4);
 
   return (
-    <main className="min-h-screen bg-kleos-bg pb-24">
-      <div className="max-w-md mx-auto px-5 pt-6 pb-4">
+    <main className="min-h-screen bg-kleos-bg pt-6 lg:pt-20 pb-24 lg:pb-12">
+      <div className="max-w-md md:max-w-2xl lg:max-w-4xl mx-auto px-5 md:px-6 lg:px-8 pb-4">
         <header className="mb-8">
           <h1 className="text-2xl font-bold font-secondary text-white">
             Profile
@@ -244,7 +244,7 @@ export default function ProfilePage() {
           <h2 className="text-white font-semibold text-base mb-4">
             Overview
           </h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             <div className="p-5 rounded-2xl bg-kleos-bg-card border border-kleos-border">
               <div className="flex items-center gap-2 mb-3">
                 {/* <div className="w-10 h-10 rounded-xl bg-kleos-bg-elevated flex items-center justify-center">
@@ -278,7 +278,7 @@ export default function ProfilePage() {
               </p>
             </div>
             {(wins > 0 || losses > 0) && (
-              <div className="col-span-2 p-5 rounded-2xl bg-kleos-bg-card border border-kleos-border">
+              <div className="col-span-2 md:col-span-3 lg:col-span-4 p-5 rounded-2xl bg-kleos-bg-card border border-kleos-border">
                 <span className="text-kleos-text-muted text-xs font-medium uppercase tracking-wider">
                   Record
                 </span>
@@ -338,10 +338,10 @@ export default function ProfilePage() {
           </section>
         )}
 
-        <div className="flex flex-col gap-3 mb-8">
+        <div className="flex flex-col md:flex-row md:flex-wrap gap-3 mb-8">
           <Link
             href="/positions"
-            className="flex items-center justify-between p-4 rounded-2xl bg-kleos-bg-card border border-kleos-border hover:border-kleos-text-muted transition-colors"
+            className="flex items-center justify-between p-4 rounded-2xl bg-kleos-bg-card border border-kleos-border hover:border-kleos-text-muted transition-colors md:flex-1 md:min-w-[200px]"
           >
             <div className="flex items-center gap-3">
               <Wallet className="w-5 h-5 text-kleos-text-muted" />
@@ -356,7 +356,7 @@ export default function ProfilePage() {
           </Link>
           <Link
             href="/"
-            className="flex items-center justify-between p-4 rounded-2xl bg-kleos-bg-card border border-kleos-border hover:border-kleos-text-muted transition-colors"
+            className="flex items-center justify-between p-4 rounded-2xl bg-kleos-bg-card border border-kleos-border hover:border-kleos-text-muted transition-colors md:flex-1 md:min-w-[200px]"
           >
             <div className="flex items-center gap-3">
               <LayoutGrid className="w-5 h-5 text-kleos-text-muted" />

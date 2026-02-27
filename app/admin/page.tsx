@@ -292,8 +292,8 @@ export default function AdminPage() {
     protocol && walletAddress && protocol.adminAuthority === walletAddress;
 
   return (
-    <main className="min-h-screen bg-black pb-20">
-      <div className="max-w-md mx-auto px-5 pt-14">
+    <main className="min-h-screen bg-black pt-14 lg:pt-20 pb-20 lg:pb-12">
+      <div className="max-w-md md:max-w-2xl lg:max-w-4xl mx-auto px-5 md:px-6 lg:px-8">
         <header className="mb-8">
           <h1 className="text-2xl font-bold text-white tracking-tight">
             Admin

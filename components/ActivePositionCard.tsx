@@ -30,7 +30,7 @@ export function ActivePositionCard({
           {marketTitle}
         </h3>
         <div className="flex items-stretch gap-0 w-full rounded-2xl overflow-hidden border border-white/10 bg-white/[0.03]">
-          <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center min-w-0">
+          <div className="flex-1 min-w-0 flex flex-col justify-center py-4 px-3 text-center">
             <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
               Your pick
             </span>
@@ -38,8 +38,8 @@ export function ActivePositionCard({
               #{selectedItemIndex} -- {optionTitle}
             </span>
           </div>
-          <div className="w-px bg-white/10" />
-          <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center min-w-0">
+          <div className="w-px bg-white/10 shrink-0" />
+          <div className="flex-shrink-0 min-w-[5.5rem] flex flex-col justify-center py-4 px-3 text-center">
             <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
               Stake
             </span>

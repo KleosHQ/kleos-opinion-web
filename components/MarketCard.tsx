@@ -39,7 +39,7 @@ export const MarketCard = React.memo(function MarketCard({ market, className = "
 
           {/* Metrics - matches SwipeBetCard footer */}
           <div className="flex items-stretch gap-0 w-full mt-4 rounded-2xl overflow-hidden border border-white/10 bg-white/[0.03]">
-            <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center">
+            <div className="flex-1 min-w-0 flex flex-col justify-center py-4 px-3 text-center">
               <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
                 Options
               </span>
@@ -47,8 +47,8 @@ export const MarketCard = React.memo(function MarketCard({ market, className = "
                 {market.itemCount}
               </span>
             </div>
-            <div className="w-px bg-white/10" />
-            <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center">
+            <div className="w-px bg-white/10 shrink-0" />
+            <div className="flex-1 min-w-0 flex flex-col justify-center py-4 px-3 text-center">
               <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
                 Positions
               </span>
@@ -56,8 +56,8 @@ export const MarketCard = React.memo(function MarketCard({ market, className = "
                 {market.positionsCount}
               </span>
             </div>
-            <div className="w-px bg-white/10" />
-            <div className="flex-1 flex flex-col justify-center py-4 px-4 text-center">
+            <div className="w-px bg-white/10 shrink-0" />
+            <div className="flex-shrink-0 min-w-[5.5rem] flex flex-col justify-center py-4 px-3 text-center">
               <span className="text-white/40 text-[11px] font-medium uppercase tracking-widest">
                 Pool
               </span>
