@@ -16,6 +16,8 @@ export async function GET(
         market: {
           select: {
             marketId: true,
+            title: true,
+            items: true,
             categoryId: true,
             status: true,
             itemCount: true,

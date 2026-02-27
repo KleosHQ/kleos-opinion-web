@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { MarketCard } from "@/components/MarketCard";
-import { LayoutGrid, Layers, Wallet } from "lucide-react";
+import { LayoutGrid, Layers, Wallet, Zap } from "lucide-react";
 import { SwipeView } from "@/components/SwipeView";
 
 interface Market {
@@ -195,15 +195,16 @@ export default function Home() {
             <div className="flex items-center gap-3">
               {viewMode === "swipe" && (
                 <div className="flex items-center gap-2 bg-kleos-bg-card border border-kleos-border rounded-lg px-3 py-1.5">
+                  <Zap size={20} />
                   <input
                     type="number"
                     min="0.001"
                     step="0.01"
                     value={quickBetAmount}
                     onChange={(e) => setQuickBetAmount(e.target.value)}
-                    className="w-16 h-8 bg-transparent text-white font-semibold text-sm text-right focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-8 h-8 bg-transparent text-white font-semibold text-sm text-right focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
-                  <span className="text-kleos-text-muted text-xs font-medium uppercase">
+                  <span className="text-kleos-text-muted text-sm font-medium uppercase">
                     SOL
                   </span>
                 </div>

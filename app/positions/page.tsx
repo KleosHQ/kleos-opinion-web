@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { useWallets } from "@privy-io/react-auth/solana";
 import bs58 from "bs58";
@@ -13,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/lib/utils/toast";
 import { cn } from "@/lib/utils";
+import { LayoutGrid, Trophy } from "lucide-react";
+import { ActivePositionCard } from "@/components/ActivePositionCard";
 
 interface Position {
   id: string;
@@ -24,6 +27,8 @@ interface Position {
   claimed: boolean;
   market: {
     marketId: string;
+    title?: string | null;
+    items?: string[] | null;
     categoryId: string;
     status: string;
     itemCount: number;
@@ -42,10 +47,22 @@ export default function PositionsPage() {
   const { client, connection } = useSolanaClient();
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState<Tab>("active");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab") as Tab | null;
+  const [tab, setTab] = useState<Tab>(
+    tabParam && ["active", "claim", "history"].includes(tabParam)
+      ? tabParam
+      : "active",
+  );
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const fetchingRef = useRef(false);
   const lastWalletRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (tabParam && ["active", "claim", "history"].includes(tabParam)) {
+      setTab(tabParam);
+    }
+  }, [tabParam]);
 
   useEffect(() => {
     if (!ready || !walletAddress) return;
@@ -149,9 +166,16 @@ export default function PositionsPage() {
     (s, p) => s + Number(p.effectiveStake),
     0,
   );
+  const claimableAmount = claimable.reduce(
+    (s, p) => s + Number(p.effectiveStake),
+    0,
+  );
   const activeMarketsCount = new Set(
     active.map((p) => p.marketId),
   ).size;
+
+  const marketLabel = (p: Position) =>
+    p.market.title?.trim() || `Market #${p.market.marketId}`;
 
   if (!ready) {
     return (
@@ -163,15 +187,15 @@ export default function PositionsPage() {
 
   if (!authenticated || !walletAddress) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
+      <div className="min-h-screen flex items-center justify-center bg-kleos-bg">
         <div className="text-center space-y-4 px-6">
-          <p className="text-white/60">
-            Connect a Solana wallet to view positions.
+          <p className="text-kleos-text-muted">
+            Connect a Solana wallet to view your portfolio.
           </p>
           <Button
             onClick={connectSolanaWallet}
             disabled={connecting || !ready}
-            className="bg-white text-black hover:bg-white/90 rounded-full font-bold"
+            className="bg-kleos-primary text-kleos-bg hover:bg-kleos-primary/90 rounded-full font-bold"
           >
             {connecting ? "Connecting..." : "Connect Wallet"}
           </Button>
@@ -183,40 +207,56 @@ export default function PositionsPage() {
   return (
     <main className="min-h-screen bg-kleos-bg pb-24">
       <div className="max-w-md mx-auto px-5 pt-6 pb-4">
-        <header className="mb-6">
+        <header className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold font-secondary text-white">Portfolio</h1>
+          <div className="flex gap-2">
+            <Link
+              href="/profile"
+              className="p-2 rounded-xl bg-kleos-bg-card border border-kleos-border text-kleos-text-muted hover:text-white hover:border-kleos-text-muted transition-colors"
+              aria-label="Profile"
+            >
+              <Trophy className="w-5 h-5" />
+            </Link>
+            <Link
+              href="/"
+              className="p-2 rounded-xl bg-kleos-bg-card border border-kleos-border text-kleos-text-muted hover:text-white hover:border-kleos-text-muted transition-colors"
+              aria-label="Browse markets"
+            >
+              <LayoutGrid className="w-5 h-5" />
+            </Link>
+          </div>
         </header>
 
-        <>
-          <div className="mb-6">
-            <div className="flex gap-3">
-              <div className="flex-1 p-4 rounded-2xl bg-kleos-bg-card border border-kleos-border">
-                <p className="text-kleos-text-muted text-xs mb-1">
-                  Total staked
-                </p>
-                <p className="text-white text-xl font-bold">
-                  {loading ? "—" : `${(totalStaked / 1e9).toFixed(6)} SOL`}
-                </p>
-              </div>
-              <div className="flex-1 p-4 rounded-2xl bg-kleos-bg-card border border-kleos-border">
-                <p className="text-kleos-text-muted text-xs mb-1">Pending</p>
-                <p className="text-kleos-primary text-xl font-bold">
-                  {loading ? "—" : "0.000000 SOL"}
-                </p>
-              </div>
-            </div>
-            <div className="p-4 mt-3 rounded-2xl bg-kleos-bg-card border border-kleos-border">
-              <p className="text-kleos-text-muted text-xs mb-1">
-                Active Positions
-              </p>
-              <p className="text-white text-lg font-bold">
-                {loading ? "—" : active.length}
-              </p>
-              <p className="text-kleos-text-subtle text-xs mt-1">
-                {loading ? "—" : `Across ${activeMarketsCount} markets`}
-              </p>
-            </div>
+        <section className="mb-8">
+          <p className="text-kleos-text-muted text-sm mb-1">Total Staked</p>
+          <p className="text-white font-secondary font-bold text-4xl tracking-tight">
+            {loading ? "—" : `${(totalStaked / 1e9).toFixed(2)} SOL`}
+          </p>
+          <p className="text-kleos-text-subtle text-sm mt-1">
+            {loading ? "—" : `Across ${activeMarketsCount} market${activeMarketsCount !== 1 ? "s" : ""}`}
+          </p>
+        </section>
+
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="p-5 rounded-2xl bg-kleos-bg-card border border-kleos-border">
+            <span className="text-kleos-text-muted text-xs font-medium uppercase tracking-wider">Pending</span>
+            <p className="text-kleos-primary font-secondary font-bold text-2xl mt-2">
+              {loading ? "—" : `${(claimableAmount / 1e9).toFixed(2)} SOL`}
+            </p>
+            <p className="text-kleos-text-subtle text-xs mt-1">
+              {loading ? "—" : `${claimable.length} to claim`}
+            </p>
           </div>
+          <div className="p-5 rounded-2xl bg-kleos-bg-card border border-kleos-border">
+            <span className="text-kleos-text-muted text-xs font-medium uppercase tracking-wider">Active</span>
+            <p className="text-white font-secondary font-bold text-2xl mt-2">
+              {loading ? "—" : active.length}
+            </p>
+            <p className="text-kleos-text-subtle text-xs mt-1">
+              Positions
+            </p>
+          </div>
+        </div>
 
           <div className="flex mb-4 gap-2">
             {(
@@ -261,22 +301,18 @@ export default function PositionsPage() {
                   </div>
                 ) : (
                   active.map((p) => (
-                    <Link
-                      href={`/markets/${p.market.marketId}`}
+                    <ActivePositionCard
                       key={p.id}
-                      className="block"
-                    >
-                      <div className="p-4 rounded-2xl bg-kleos-bg-card border border-kleos-border hover:border-kleos-text-muted transition-colors">
-                        <p className="text-white font-medium">
-                          Market #{p.market.marketId}
-                        </p>
-                        <p className="text-kleos-primary text-sm mt-1">
-                          Option #{p.selectedItemIndex} —{" "}
-                          {(Number(p.effectiveStake) / 1e9).toFixed(2)} SOL
-                          effective
-                        </p>
-                      </div>
-                    </Link>
+                      marketId={p.market.marketId}
+                      marketTitle={marketLabel(p)}
+                      selectedItemIndex={p.selectedItemIndex}
+                      optionTitle={
+                        Array.isArray(p.market.items) && p.market.items[p.selectedItemIndex]
+                          ? p.market.items[p.selectedItemIndex]
+                          : `Option #${p.selectedItemIndex}`
+                      }
+                      effectiveStake={p.effectiveStake}
+                    />
                   ))
                 )}
               </div>
@@ -292,6 +328,12 @@ export default function PositionsPage() {
                 ) : claimable.length === 0 ? (
                   <div className="py-16 text-center">
                     <p className="text-kleos-text-muted">Nothing to claim</p>
+                    <Link
+                      href="/"
+                      className="mt-4 inline-block px-6 py-3 bg-kleos-bg-elevated border border-kleos-border text-white rounded-full font-medium hover:border-kleos-text-muted transition-colors"
+                    >
+                      Browse markets
+                    </Link>
                   </div>
                 ) : (
                   claimable.map((p) => (
@@ -301,9 +343,9 @@ export default function PositionsPage() {
                     >
                       <Link
                         href={`/markets/${p.market.marketId}`}
-                        className="text-white font-medium hover:underline"
+                        className="text-white font-medium hover:underline line-clamp-2"
                       >
-                        Market #{p.market.marketId}
+                        {marketLabel(p)}
                       </Link>
                       <p className="text-emerald-400 text-sm font-medium mt-2">
                         Winner! Claim Payout
@@ -332,6 +374,12 @@ export default function PositionsPage() {
                 ) : history.length === 0 ? (
                   <div className="py-16 text-center">
                     <p className="text-kleos-text-muted">No history yet</p>
+                    <Link
+                      href="/"
+                      className="mt-4 inline-block px-6 py-3 bg-kleos-bg-elevated border border-kleos-border text-white rounded-full font-medium hover:border-kleos-text-muted transition-colors"
+                    >
+                      Browse markets
+                    </Link>
                   </div>
                 ) : (
                   history.map((p) => (
@@ -341,8 +389,8 @@ export default function PositionsPage() {
                       className="block"
                     >
                       <div className="p-4 rounded-2xl bg-kleos-bg-card border border-kleos-border opacity-80 hover:opacity-100 transition-opacity">
-                        <p className="text-white font-medium">
-                          Market #{p.market.marketId}
+                        <p className="text-white font-medium line-clamp-2">
+                          {marketLabel(p)}
                         </p>
                         <div className="flex justify-between items-center mt-1">
                           <p className="text-kleos-text-muted text-sm">
@@ -361,7 +409,6 @@ export default function PositionsPage() {
                 )}
             </div>
           )}
-        </>
       </div>
     </main>
   );
